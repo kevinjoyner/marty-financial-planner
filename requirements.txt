@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy
+python-dotenv
+python-dateutil
+black
+pytest
+httpx
+alembic

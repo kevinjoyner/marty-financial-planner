@@ -1,0 +1,28 @@
+from .utils import create_test_scenario, create_test_owner, create_test_account
+
+def test_transfer_crud(client, test_db):
+    scenario = create_test_scenario(client, "Transfer Test Scenario")
+    scenario_id = scenario["id"]
+    owner = create_test_owner(client, "Transfer Test Owner", scenario_id)
+    owner_id = owner["id"]
+    
+    from_account = create_test_account(client, scenario_id, [owner_id], name="From Account")
+    from_account_id = from_account["id"]
+    to_account = create_test_account(client, scenario_id, [owner_id], name="To Account")
+    to_account_id = to_account["id"]
+
+    transfer_data = {
+        "name": "Monthly Savings",
+        "value": 50000,
+        "cadence": "monthly",
+        "start_date": "2024-01-01",
+        "scenario_id": scenario_id,
+        "from_account_id": from_account_id,
+        "to_account_id": to_account_id,
+    }
+    create_res = client.post("/api/transfers/", json=transfer_data)
+    assert create_res.status_code == 200
+    id = create_res.json()["id"]
+
+    delete_res = client.delete(f"/api/transfers/{id}")
+    assert delete_res.status_code == 200

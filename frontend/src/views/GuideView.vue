@@ -1,0 +1,194 @@
+<script setup>
+import { onMounted, ref, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { BookOpen, Anchor, Zap, TrendingUp, Shield, Activity, GitBranch } from 'lucide-vue-next'
+
+const route = useRoute()
+const activeSection = ref('')
+
+// Map Route Names to Section IDs
+const sectionMap = {
+    'dashboard': 'sec-dashboard',
+    'accounts': 'sec-accounts',
+    'income': 'sec-income',
+    'transactions': 'sec-transactions',
+    'expenses': 'sec-transactions', // Expense view alias
+    'tax': 'sec-tax',
+    'automation': 'sec-automation',
+    'scenarios': 'sec-scenarios'
+}
+
+const scrollToContext = async () => {
+    await nextTick() // Wait for render
+    const id = sectionMap[route.name] || 'sec-intro'
+    const el = document.getElementById(id)
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        activeSection.value = id
+    }
+}
+
+onMounted(() => {
+    scrollToContext()
+})
+
+// Re-scroll if the user navigates while the guide is open
+watch(() => route.name, () => scrollToContext())
+</script>
+
+<template>
+    <div class="text-slate-700 pb-20 relative">
+        
+        <div class="mb-8 border-b border-slate-100 pb-6">
+            <h3 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                <BookOpen class="w-5 h-5 text-primary" /> Aura Handbook
+            </h3>
+            <p class="text-sm text-slate-500">
+                Aura is a deterministic simulation engine. Unlike budgeting apps that look backward, Aura projects forward to model your financial future.
+            </p>
+        </div>
+
+        <div class="space-y-12">
+            
+            <section id="sec-dashboard" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Activity class="w-5 h-5 text-blue-600" /> The Cockpit (Dashboard)
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>The dashboard is your command center. It visualizes the result of your simulation.</p>
+                    
+                    <h5 class="font-semibold text-slate-800 mt-3">The Scorecards</h5>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>Net Contributions:</strong> "Active Wealth" – Money you saved from income.</li>
+                        <li><strong>Investment Growth:</strong> "Passive Wealth" – Money your money made.</li>
+                        <li><strong>Annual Return:</strong> Your efficiency score. >2% beats inflation.</li>
+                    </ul>
+
+                    <h5 class="font-semibold text-slate-800 mt-3">Visual Intelligence (The Chart)</h5>
+                    <p>The chart isn't just a line; it's a timeline of your life.</p>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>Ghost Line (Grey):</strong> Your "Baseline". This is reality before your latest tweaks.</li>
+                        <li><strong>Solid Line (Color):</strong> Your "Projected" reality based on active overrides.</li>
+                        <li><strong>Green Dotted Lines:</strong> Automated milestones (e.g., "Debt Free Date").</li>
+                        <li><strong>Purple Dotted Lines:</strong> Specific transactions you've pinned to the chart.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="sec-accounts" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Shield class="w-5 h-5 text-emerald-600" /> Accounts & Assets
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>Accounts hold your wealth. Aura treats them differently based on <strong>Type</strong> and <strong>Tax Wrapper</strong>.</p>
+                    
+                    <h5 class="font-semibold text-slate-800 mt-3">Asset Types</h5>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>Cash:</strong> Standard savings. Interest is taxable (PSA).</li>
+                        <li><strong>Investment:</strong> GIA. subject to Capital Gains Tax (CGT) on disposal.</li>
+                        <li><strong>Mortgage:</strong> A negative balance account. The engine automatically calculates interest and repayment schedules.</li>
+                        <li><strong>RSU Grant:</strong> Unvested stock. Automatically "Vests" into cash on the grant schedule.</li>
+                    </ul>
+
+                    <h5 class="font-semibold text-slate-800 mt-3">Tax Wrappers</h5>
+                    <p>Wrappers protect your assets from tax drag.</p>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>ISA:</strong> Immune to Tax on Interest and Gains.</li>
+                        <li><strong>Pension:</strong> Immune to Tax. Withdrawals restricted by age (Future feature).</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="sec-income" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Zap class="w-5 h-5 text-amber-500" /> Income & Work
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>Aura includes a full UK Payroll engine (2024/25 Rules).</p>
+                    
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2">
+                        <strong class="text-slate-800">Pro Tip:</strong> Check the <em>"Pre-Tax"</em> box when adding salary. Aura will automatically deduct Income Tax and NI for you.
+                    </div>
+
+                    <h5 class="font-semibold text-slate-800 mt-3">Advanced Payroll</h5>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>Salary Sacrifice:</strong> Reduces taxable income and moves cash straight to your Pension.</li>
+                        <li><strong>Benefits in Kind (BiK):</strong> Adds to taxable income (raising your tax bracket) without adding cash to your pocket.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="sec-transactions" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <TrendingUp class="w-5 h-5 text-rose-500" /> Flows & Transactions
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>Money moves in three ways:</p>
+                    <ol class="list-decimal list-inside space-y-1 ml-1">
+                        <li><strong>Recurring Costs:</strong> Monthly/Annual bills (Netflix, Utility, Gym).</li>
+                        <li><strong>One-off Events:</strong> Major life spending (Wedding, House Deposit).</li>
+                        <li><strong>Transfers:</strong> Moving money between your own accounts.</li>
+                    </ol>
+
+                    <h5 class="font-semibold text-slate-800 mt-3">Show on Chart</h5>
+                    <p>Use the toggle in the transaction form to draw a vertical marker on the projection chart. Great for visualizing <em>"When do I buy the house?"</em></p>
+                </div>
+            </section>
+
+            <section id="sec-tax" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Anchor class="w-5 h-5 text-indigo-600" /> Tax & People
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>Financial planning is personal. Assign assets to specific <strong>Owners</strong> to utilize their individual allowances.</p>
+
+                    <h5 class="font-semibold text-slate-800 mt-3">Fiscal Limits</h5>
+                    <p>You can define custom limits (e.g., <strong>ISA Allowance: £20k</strong>). If an automation rule tries to move more than this into an ISA, Aura will:</p>
+                    <ul class="list-disc list-inside space-y-1 ml-1">
+                        <li><strong>Trim</strong> the transfer to fill the remaining allowance.</li>
+                        <li><strong>Alert</strong> you in the projection warnings.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="sec-automation" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <GitBranch class="w-5 h-5 text-purple-600" /> Automation (The Brain)
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p>This is where Aura beats spreadsheets. Rules execute <strong>every month</strong> of the simulation, reacting to your changing balance.</p>
+
+                    <div class="grid grid-cols-1 gap-3 mt-3">
+                        <div class="p-3 border border-slate-200 rounded-md bg-white">
+                            <span class="text-purple-700 font-bold text-xs uppercase">Sweep</span>
+                            <p class="text-xs mt-1">"If Current Account > £2,000, move excess to Savings."</p>
+                        </div>
+                        <div class="p-3 border border-slate-200 rounded-md bg-white">
+                            <span class="text-purple-700 font-bold text-xs uppercase">Top-Up</span>
+                            <p class="text-xs mt-1">"If Current Account < £0, pull money from Savings to fix it."</p>
+                        </div>
+                        <div class="p-3 border border-slate-200 rounded-md bg-white">
+                            <span class="text-purple-700 font-bold text-xs uppercase">Smart Mortgage</span>
+                            <p class="text-xs mt-1">"Pay 10% of my mortgage balance every year, but split it into smooth monthly payments."</p>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-xs italic"><strong>Note:</strong> Drag and drop rules to change their priority. Order matters!</p>
+                </div>
+            </section>
+
+            <section id="sec-scenarios" class="scroll-mt-4">
+                <h4 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <GitBranch class="w-5 h-5 text-slate-600" /> Scenarios & Modelling
+                </h4>
+                <div class="prose prose-sm text-slate-600">
+                    <p><strong>Scenarios</strong> are persistent save files. Use "Duplicate" to create a safe sandbox (e.g. "Scenario B: Retire Early").</p>
+                    
+                    <h5 class="font-semibold text-slate-800 mt-3">The Modelling Bar (Right Sidebar)</h5>
+                    <p>Click the <span class="inline-flex items-center justify-center w-4 h-4 bg-slate-100 border rounded text-[10px]">📌</span> pin icon on <em>any</em> field to add it to the Modelling Bar.</p>
+                    <p class="mt-2">Changes made in the Modelling Bar are <strong>temporary simulations</strong>. They show as a Ghost Line on the chart. Reset them to discard, or click "Save" to commit them to the database.</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+</template>

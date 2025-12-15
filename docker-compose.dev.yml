@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+    environment:
+      - DATABASE_URL=sqlite:///./aura.db
+    volumes:
+      - .:/app:cached
+    ports:
+      - "8000:8000"
+    command: ["sleep", "infinity"]

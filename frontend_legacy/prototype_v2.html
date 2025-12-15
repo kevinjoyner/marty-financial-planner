@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura V2 - Modelling Mode Prototype</title>
+    <style>
+        /* --- CSS VARIABLES (Borrowed from your style.css) --- */
+        :root {
+            --primary-color: #2563eb;
+            --primary-light: #eff6ff;
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --success-color: #16a34a;
+            --modelling-bar-width: 320px;
+            --nav-bar-width: 70px;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden; /* App-like feel */
+            display: flex;
+        }
+
+        /* --- 1. LEFT NAVIGATION RAIL --- */
+        .nav-rail {
+            width: var(--nav-bar-width);
+            background: white;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+            z-index: 20;
+        }
+
+        .nav-item {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover { background-color: var(--bg-color); color: var(--primary-color); }
+        .nav-item.active { background-color: var(--primary-light); color: var(--primary-color); }
+        
+        /* Mock Icons */
+        .icon { font-size: 1.2rem; font-weight: bold; }
+
+        /* --- 2. CENTER STAGE (Main Content) --- */
+        .main-stage {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+        }
+
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .header-row h1 { margin: 0; font-size: 1.5rem; }
+
+        /* --- 3. SPLIT SCORECARDS --- */
+        .scorecard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .split-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .card-half {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .card-half.baseline {
+            background-color: #f9fafb;
+            border-right: 1px dashed var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .card-half.simulation {
+            background-color: white;
+        }
+
+        .card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: #9ca3af; }
+        .card-value { font-size: 1.25rem; font-weight: 700; }
+        .sim-val { color: var(--primary-color); }
+        
+        /* --- CHART MOCKUP --- */
+        .chart-mockup {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            height: 350px;
+            padding: 20px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        /* The "Ghost" Line Concept */
+        .line-baseline {
+            position: absolute; bottom: 50px; left: 50px; right: 50px; top: 100px;
+            border-top: 2px dashed #9ca3af; /* Dashed Grey */
+            transform: rotate(-5deg);
+            opacity: 0.5;
+        }
+        .line-simulation {
+            position: absolute; bottom: 50px; left: 50px; right: 50px; top: 80px;
+            border-top: 3px solid var(--primary-color); /* Solid Blue */
+            transform: rotate(-8deg);
+        }
+        .chart-legend { position: absolute; top: 10px; right: 20px; font-size: 0.8rem; display: flex; gap: 15px;}
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* --- 4. RIGHT MODELLING BAR --- */
+        .modelling-bar {
+            width: var(--modelling-bar-width);
+            background: white;
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.02);
+            z-index: 30;
+        }
+
+        .bar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fdfdfd;
+        }
+        .bar-header h3 { margin: 0; font-size: 1rem; color: var(--text-main); }
+        .bar-header p { margin: 5px 0 0 0; font-size: 0.8rem; color: var(--text-secondary); }
+
+        .pinned-list {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* Pinned Item Card */
+        .pin-card {
+            background: white;
+            border: 1px solid var(--primary-color); /* Active border */
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(37,99,235,0.1);
+            position: relative;
+        }
+        
+        .pin-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+        .pin-input-row { display: flex; gap: 8px; }
+        .pin-input {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .pin-actions {
+            position: absolute;
+            top: 8px; right: 8px;
+            display: flex; gap: 4px;
+        }
+        .pin-btn-icon { font-size: 0.8rem; color: #9ca3af; cursor: pointer; }
+        .pin-btn-icon:hover { color: var(--text-main); }
+
+        .bar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            background: #f9fafb;
+        }
+        .btn-commit { width: 100%; padding: 10px; background: var(--primary-color); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-reset { width: 100%; padding: 10px; background: transparent; color: var(--text-secondary); border: none; font-size: 0.85rem; cursor: pointer; margin-top: 5px;}
+
+        /* Pin Button in Main UI (Example) */
+        .field-example {
+            padding: 15px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: center; background: white;
+        }
+        .pin-trigger {
+            color: #9ca3af; cursor: pointer; padding: 4px;
+        }
+        .pin-trigger:hover { color: var(--primary-color); }
+
+    </style>
+</head>
+<body>
+
+    <nav class="nav-rail">
+        <div class="nav-item active" title="Dashboard"><span class="icon">⊞</span></div>
+        <div class="nav-item" title="Accounts"><span class="icon">🏛</span></div>
+        <div class="nav-item" title="Income"><span class="icon">💷</span></div>
+        <div class="nav-item" title="Expenses"><span class="icon">📉</span></div>
+        <div class="nav-item" title="Settings" style="margin-top: auto;"><span class="icon">⚙</span></div>
+    </nav>
+
+    <main class="main-stage">
+        <div class="header-row">
+            <h1>Dashboard</h1>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">Scenario: <strong>Baseline</strong></span>
+        </div>
+
+        <div class="scorecard-grid">
+            <div class="split-card">
+                <div class="card-half baseline">
+                    <span class="card-label">Baseline</span>
+                    <span class="card-value">£500k</span>
+                </div>
+                <div class="card-half simulation">
+                    <span class="card-label" style="color:var(--primary-color)">Projected</span>
+                    <span class="card-value sim-val">£525k</span>
+                </div>
+            </div>
+
+            <div class="split-card">
+                <div class="card-half baseline">
+                    <span class="card-label">Return</span>
+                    <span class="card-value">4.2%</span>
+                </div>
+                <div class="card-half simulation">
+                    <span class="card-label" style="color:var(--primary-color)">Projected</span>
+                    <span class="card-value sim-val">4.8%</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-mockup">
+            <div class="chart-legend">
+                <div class="legend-item"><div class="dot" style="background:#9ca3af; opacity:0.5;"></div> Baseline</div>
+                <div class="legend-item"><div class="dot" style="background:var(--primary-color);"></div> Simulation</div>
+            </div>
+            <div style="position: absolute; top: 45%; left: 40%; color: #666;">
+                [Chart Visual Mockup]<br>
+                Grey Dashed = Original<br>
+                Solid Blue = With Changes
+            </div>
+            <div class="line-baseline"></div>
+            <div class="line-simulation"></div>
+        </div>
+
+        <h3>Variables in Context</h3>
+        <p style="color:#666; margin-bottom:15px;">Example of how pinning looks on a normal page:</p>
+        
+        <div class="field-example">
+            <div>
+                <label style="display:block; font-size:0.8rem; color:#666;">Annual Salary</label>
+                <strong>£85,000</strong>
+            </div>
+            <span class="pin-trigger" title="Pin to Modelling Bar">📌 Pin</span>
+        </div>
+    </main>
+
+    <aside class="modelling-bar">
+        <div class="bar-header">
+            <h3>Modelling</h3>
+            <p>2 Active Overrides</p>
+        </div>
+        
+        <div class="pinned-list">
+            <div class="pin-card">
+                <div class="pin-actions">
+                    <span class="pin-btn-icon" title="Unpin">×</span>
+                </div>
+                <label class="pin-label">Job: Salary</label>
+                <div class="pin-input-row">
+                    <input type="text" class="pin-input" value="£90,000">
+                </div>
+            </div>
+
+            <div class="pin-card">
+                <div class="pin-actions">
+                    <span class="pin-btn-icon" title="Unpin">×</span>
+                </div>
+                <label class="pin-label">Mortgage: Overpayment</label>
+                <div class="pin-input-row">
+                    <input type="text" class="pin-input" value="£500 /mo">
+                </div>
+            </div>
+            
+            <p style="text-align:center; color:#ccc; font-size:0.8rem; margin-top:20px;">
+                — Drag to Reorder —
+            </p>
+        </div>
+
+        <div class="bar-footer">
+            <button class="btn-commit">Save as New Scenario</button>
+            <button class="btn-reset">Discard Changes</button>
+        </div>
+    </aside>
+
+</body>
+</html>

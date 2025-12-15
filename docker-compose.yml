@@ -1,0 +1,27 @@
+services:
+  app:
+    image: ghcr.io/kevinjoyner/aura-financial-planner:latest
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=sqlite:////data/aura.db
+    volumes:
+      - aura_data:/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"  # Tell Watchtower to update this
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Use the same credentials you generated for Portainer
+      - REPO_USER=${GH_USER}
+      - REPO_PASS=${GH_PAT}
+      - DOCKER_API_VERSION=1.44
+    command: --interval 300 --cleanup --label-enable # Check every 5 mins, clean old images, only update labeled containers
+    restart: unless-stopped
+
+volumes:
+  aura_data:
