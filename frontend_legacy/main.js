@@ -45,7 +45,7 @@ function setupGlobalNav() {
         } else {
             header = document.createElement('header');
             header.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:10px 20px; background:#fff; border-bottom:1px solid #eee;";
-            header.innerHTML = '<div style="font-weight:bold; font-size:1.2rem;">Aura</div>';
+            header.innerHTML = '<div style="font-weight:bold; font-size:1.2rem;">Marty</div>';
             document.body.insertBefore(header, document.body.firstChild);
         }
     }
@@ -224,7 +224,7 @@ function setupHeaderActions() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `aura_scenario_${currentScenarioData.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+        link.download = `marty_scenario_${currentScenarioData.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -429,7 +429,7 @@ if(scenariosList) {
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
                 link.href = url;
-                link.download = `aura_scenario_${data.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+                link.download = `marty_scenario_${data.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

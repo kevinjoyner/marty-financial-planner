@@ -1,7 +1,7 @@
 #!/bin/bash
-# start.sh - Aura Application Entry Point
+# start.sh - Marty Application Entry Point
 
-DB_FILE="/data/aura.db"
+DB_FILE="/data/marty.db"
 
 echo "--- AURA STARTUP SEQUENCE ---"
 

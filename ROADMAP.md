@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-Aura is a specialized **Single Page Application (SPA)** with a Python simulation backend.
+Marty is a specialized **Single Page Application (SPA)** with a Python simulation backend.
 
 ### Backend (The Brain)
 * **Framework:** Python / FastAPI.

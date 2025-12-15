@@ -41,10 +41,10 @@ watch(() => route.name, () => scrollToContext())
         
         <div class="mb-8 border-b border-slate-100 pb-6">
             <h3 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                <BookOpen class="w-5 h-5 text-primary" /> Aura Handbook
+                <BookOpen class="w-5 h-5 text-primary" /> Marty Handbook
             </h3>
             <p class="text-sm text-slate-500">
-                Aura is a deterministic simulation engine. Unlike budgeting apps that look backward, Aura projects forward to model your financial future.
+                Marty is a deterministic simulation engine. Unlike budgeting apps that look backward, Marty projects forward to model your financial future.
             </p>
         </div>
 
@@ -80,7 +80,7 @@ watch(() => route.name, () => scrollToContext())
                     <Shield class="w-5 h-5 text-emerald-600" /> Accounts & Assets
                 </h4>
                 <div class="prose prose-sm text-slate-600">
-                    <p>Accounts hold your wealth. Aura treats them differently based on <strong>Type</strong> and <strong>Tax Wrapper</strong>.</p>
+                    <p>Accounts hold your wealth. Marty treats them differently based on <strong>Type</strong> and <strong>Tax Wrapper</strong>.</p>
                     
                     <h5 class="font-semibold text-slate-800 mt-3">Asset Types</h5>
                     <ul class="list-disc list-inside space-y-1 ml-1">
@@ -104,10 +104,10 @@ watch(() => route.name, () => scrollToContext())
                     <Zap class="w-5 h-5 text-amber-500" /> Income & Work
                 </h4>
                 <div class="prose prose-sm text-slate-600">
-                    <p>Aura includes a full UK Payroll engine (2024/25 Rules).</p>
+                    <p>Marty includes a full UK Payroll engine (2024/25 Rules).</p>
                     
                     <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2">
-                        <strong class="text-slate-800">Pro Tip:</strong> Check the <em>"Pre-Tax"</em> box when adding salary. Aura will automatically deduct Income Tax and NI for you.
+                        <strong class="text-slate-800">Pro Tip:</strong> Check the <em>"Pre-Tax"</em> box when adding salary. Marty will automatically deduct Income Tax and NI for you.
                     </div>
 
                     <h5 class="font-semibold text-slate-800 mt-3">Advanced Payroll</h5>
@@ -143,7 +143,7 @@ watch(() => route.name, () => scrollToContext())
                     <p>Financial planning is personal. Assign assets to specific <strong>Owners</strong> to utilize their individual allowances.</p>
 
                     <h5 class="font-semibold text-slate-800 mt-3">Fiscal Limits</h5>
-                    <p>You can define custom limits (e.g., <strong>ISA Allowance: £20k</strong>). If an automation rule tries to move more than this into an ISA, Aura will:</p>
+                    <p>You can define custom limits (e.g., <strong>ISA Allowance: £20k</strong>). If an automation rule tries to move more than this into an ISA, Marty will:</p>
                     <ul class="list-disc list-inside space-y-1 ml-1">
                         <li><strong>Trim</strong> the transfer to fill the remaining allowance.</li>
                         <li><strong>Alert</strong> you in the projection warnings.</li>
@@ -156,7 +156,7 @@ watch(() => route.name, () => scrollToContext())
                     <GitBranch class="w-5 h-5 text-purple-600" /> Automation (The Brain)
                 </h4>
                 <div class="prose prose-sm text-slate-600">
-                    <p>This is where Aura beats spreadsheets. Rules execute <strong>every month</strong> of the simulation, reacting to your changing balance.</p>
+                    <p>This is where Marty beats spreadsheets. Rules execute <strong>every month</strong> of the simulation, reacting to your changing balance.</p>
 
                     <div class="grid grid-cols-1 gap-3 mt-3">
                         <div class="p-3 border border-slate-200 rounded-md bg-white">

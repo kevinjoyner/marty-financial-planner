@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       target: base
     environment:
-      - DATABASE_URL=sqlite:///./aura.db
+      - DATABASE_URL=sqlite:///./marty.db
     volumes:
       - .:/app:cached
     ports:

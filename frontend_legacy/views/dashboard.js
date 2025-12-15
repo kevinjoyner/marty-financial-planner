@@ -358,7 +358,7 @@ function renderAutomationAuditModal(logs) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `aura_automation_audit_${new Date().toISOString().slice(0,10)}.csv`;
+        a.download = `marty_automation_audit_${new Date().toISOString().slice(0,10)}.csv`;
         a.click();
     });
     modalOverlay.querySelector('.modal-close').addEventListener('click', () => modalOverlay.remove());

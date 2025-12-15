@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { LayoutDashboard, Wallet, ArrowRightLeft, Landmark, Zap, Workflow, FolderOpen, History, HelpCircle, Scale } from 'lucide-vue-next'
+import { LayoutDashboard, Wallet, ArrowRightLeft, Landmark, Sigma, Workflow, FolderOpen, History, HelpCircle, Scale } from 'lucide-vue-next'
 import ModellingBar from './components/ModellingBar.vue'
 import Drawer from './components/Drawer.vue'
 import GuideView from './views/GuideView.vue'
@@ -29,7 +29,9 @@ const navClass = (name) => {
   <div class="flex h-screen w-full bg-slate-50 text-slate-800 font-sans">
     
     <nav class="w-[70px] bg-white border-r border-slate-200 flex flex-col items-center py-6 z-20 flex-shrink-0">
-        <div class="mb-8 text-primary"><Zap class="w-8 h-8 fill-current" /></div>
+        <div class="mb-8 text-primary">
+            <Sigma class="w-8 h-8" />
+        </div>
         
         <div class="space-y-4 w-full flex flex-col items-center">
             <RouterLink to="/" :class="navClass('dashboard')" title="Dashboard"><LayoutDashboard class="w-5 h-5" /></RouterLink>

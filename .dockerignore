@@ -14,7 +14,7 @@ apply_changes.sh
 # Database
 # Prevent the database file from being copied into the image.
 # It should be managed by a volume.
-aura.db
+marty.db
 
 # Python
 __pycache__/

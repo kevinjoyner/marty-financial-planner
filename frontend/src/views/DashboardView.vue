@@ -65,7 +65,7 @@ const hiddenAlertSignatures = ref(new Set()) // Stores "type:account_id" strings
 
 const loadSettings = () => {
     if (!store.activeScenarioId) return;
-    const key = `aura_dash_${store.activeScenarioId}`;
+    const key = `marty_dash_${store.activeScenarioId}`;
     const saved = localStorage.getItem(key);
     if (saved) {
         try {
@@ -88,7 +88,7 @@ const selectAllAccounts = () => {
 
 const saveSettings = () => {
     if (!store.activeScenarioId || !isSettingsLoaded.value) return;
-    const key = `aura_dash_${store.activeScenarioId}`;
+    const key = `marty_dash_${store.activeScenarioId}`;
     localStorage.setItem(key, JSON.stringify({
         visibleAccountIds: visibleAccountIds.value,
         aggregationMode: aggregationMode.value,

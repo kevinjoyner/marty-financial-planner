@@ -4,7 +4,7 @@ from sqlalchemy.event import listen
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Use env var for DB location, default to local (Dev-friendly)
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aura.db")
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./marty.db")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

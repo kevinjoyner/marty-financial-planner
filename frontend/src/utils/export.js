@@ -37,7 +37,7 @@ export function exportBalancesToCSV(simulationData, scenario) {
     });
 
     const dateStr = new Date().toISOString().slice(0,10);
-    downloadCSV(rows.join("\n"), `aura_balances_${dateStr}.csv`);
+    downloadCSV(rows.join("\n"), `marty_balances_${dateStr}.csv`);
 }
 
 export function exportFlowsToCSV(simulationData, scenario) {
@@ -104,5 +104,5 @@ export function exportFlowsToCSV(simulationData, scenario) {
     });
 
     const dateStr = new Date().toISOString().slice(0,10);
-    downloadCSV(rows.join("\n"), `aura_transaction_report_${dateStr}.csv`);
+    downloadCSV(rows.join("\n"), `marty_transaction_report_${dateStr}.csv`);
 }

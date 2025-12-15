@@ -4,7 +4,7 @@ import { api } from '../services/api'
 
 export const useSimulationStore = defineStore('simulation', () => {
   
-  const savedId = localStorage.getItem('aura_active_scenario_id')
+  const savedId = localStorage.getItem('marty_active_scenario_id')
   const activeScenarioId = ref(savedId ? parseInt(savedId) : null)
   const isInternalLoading = ref(false)
   const scenario = ref(null)
@@ -18,7 +18,7 @@ export const useSimulationStore = defineStore('simulation', () => {
   const history = ref([])
 
   watch(activeScenarioId, (newVal) => {
-      if (newVal) localStorage.setItem('aura_active_scenario_id', newVal)
+      if (newVal) localStorage.setItem('marty_active_scenario_id', newVal)
   })
 
   async function loadActiveScenario(id) {

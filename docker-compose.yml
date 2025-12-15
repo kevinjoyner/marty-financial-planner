@@ -1,12 +1,12 @@
 services:
   app:
-    image: ghcr.io/kevinjoyner/aura-financial-planner:latest
+    image: ghcr.io/kevinjoyner/marty-financial-planner:latest
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
-      - DATABASE_URL=sqlite:////data/aura.db
+      - DATABASE_URL=sqlite:////data/marty.db
     volumes:
-      - aura_data:/data
+      - marty_data:/data
     labels:
       - "com.centurylinklabs.watchtower.enable=true"  # Tell Watchtower to update this
 
@@ -24,4 +24,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  aura_data:
+  marty_data:

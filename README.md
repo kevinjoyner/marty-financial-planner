@@ -1,10 +1,10 @@
-# Aura: Personal Financial Simulation Cockpit
+# Marty: Personal Financial Simulation Cockpit
 
-Aura is a deterministic financial simulation engine designed to model personal wealth trajectories with accounting-level precision. Unlike standard budgeting apps that track *past* spending, Aura projects *future* outcomes based on complex, interacting rules.
+Marty is a deterministic financial simulation engine designed to model personal wealth trajectories with accounting-level precision. Unlike standard budgeting apps that track *past* spending, Marty projects *future* outcomes based on complex, interacting rules.
 
 ## Core Product Concept: "The Cockpit"
 
-Aura is built around the concept of a **Financial Cockpit**. 
+Marty is built around the concept of a **Financial Cockpit**. 
 - **Center Stage (The Reality):** Your defined financial state (Income, Accounts, Recurring Expenses, Tax Rules).
 - **Modelling Bar (The What-If):** A non-destructive scratchpad on the right. You can "Pin" **any** variable (e.g., Salary, Mortgage Rate, ISA Limit, Inflation) to the bar and adjust it to see real-time impacts.
 - **Ghost Charting:** Visualizes your "Baseline" (Current Reality) vs. "Projected" (Simulated Reality) simultaneously to show the delta of your decisions.
@@ -13,7 +13,7 @@ Aura is built around the concept of a **Financial Cockpit**.
 ## Feature Specifications
 
 ### 1. The Simulation Engine
-The core of Aura is a time-series projection engine.
+The core of Marty is a time-series projection engine.
 - **Resolution:** Monthly steps.
 - **Logic:** Deterministic flow (Income -> Tax -> Transfers -> Costs -> Growth).
 - **Simulation Mode:** The engine accepts temporary `overrides` (in-memory) to calculate hypothetical futures without altering the database.
@@ -33,14 +33,14 @@ The core of Aura is a time-series projection engine.
     * **Priorities:** Drag-and-drop ordering of automation rules.
 
 ### 3. Entity Management (The Drawers)
-To maintain context, Aura uses a "Slide-over Drawer" pattern for editing.
+To maintain context, Marty uses a "Slide-over Drawer" pattern for editing.
 - **Context:** Users remain on the main view (e.g., Accounts List).
 - **Edit:** Clicking edit slides out a form panel with specialized logic (e.g., Mortgage Calculators).
 - **Universal Pinning:** Every numerical or date field has a "Pin" toggle. Pinning moves that variable to the Modelling Bar for experimentation.
 - **History:** A session-based Undo/Redo stack allows for safe experimentation with complex rule changes.
 
 ### 4. Visual Intelligence
-Aura visualizes key moments in your financial future using a custom charting engine.
+Marty visualizes key moments in your financial future using a custom charting engine.
 - **Automated Milestones:** The engine detects state changes and generates markers for:
     - **Debt Freedom:** The month a mortgage balance hits zero.
     - **Liquidity Crossover:** The month Liquid Assets exceed Total Liabilities.

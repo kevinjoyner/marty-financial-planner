@@ -51,7 +51,7 @@ export function initSortableTables(container) {
 
         // Restore sort state
         if (tableId) {
-            const savedSort = localStorage.getItem(`aura_table_sort_${tableId}`);
+            const savedSort = localStorage.getItem(`marty_table_sort_${tableId}`);
             if (savedSort) {
                 const { colIndex, dir } = JSON.parse(savedSort);
                 if (headers[colIndex]) {
@@ -68,7 +68,7 @@ export function initSortableTables(container) {
                 sortTable(table, tbody, headers, columnIndex, newDir);
                 
                 if (tableId) {
-                    localStorage.setItem(`aura_table_sort_${tableId}`, JSON.stringify({ colIndex: columnIndex, dir: newDir }));
+                    localStorage.setItem(`marty_table_sort_${tableId}`, JSON.stringify({ colIndex: columnIndex, dir: newDir }));
                 }
             });
         });

@@ -41,7 +41,7 @@ const exportScen = async (id, name) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `aura_scenario_${name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+        link.download = `marty_scenario_${name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
