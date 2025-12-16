@@ -53,11 +53,6 @@ const openCreate = () => {
 
 const save = async () => {
     const payload = { ...form.value }
-    // These are floats in the form, but should be converted to pence in store
-    // The store handles *100 conversion for 'net_value', need to ensure others are handled there or here.
-    // Store saveEntity handles the main value. For specialised fields we rely on the store.
-    // Let's ensure consistency.
-    
     const success = await store.saveEntity('income', editingItem.value.id, payload, `Saved ${form.value.name}`)
     if (success) editingItem.value = null
 }
@@ -70,12 +65,12 @@ const remove = async () => {
 
 <template>
     <div class="flex flex-col h-full max-w-5xl mx-auto w-full pb-24">
-        <header class="mb-8 flex justify-between items-start">
+        <header class="mb-8 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Income Sources</h1>
                 <p class="text-sm text-slate-500 mt-1">Manage and model your earnings.</p>
             </div>
-            <button @click="openCreate" class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+            <button @click="openCreate" class="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm">
                 <Plus class="w-4 h-4" /> Add Income
             </button>
         </header>

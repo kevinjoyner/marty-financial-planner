@@ -60,12 +60,12 @@ const remove = async () => {
 
 <template>
     <div class="flex flex-col min-h-full pb-24 max-w-5xl mx-auto w-full relative pb-24">
-        <header class="mb-8 flex justify-between items-start">
+        <header class="mb-8 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
                 <p class="text-sm text-slate-500 mt-1">Assets, liabilities, and equity.</p>
             </div>
-            <button @click="openCreate" class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+            <button @click="openCreate" class="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm">
                 <Plus class="w-4 h-4" /> Add Account
             </button>
         </header>
