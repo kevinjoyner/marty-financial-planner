@@ -1,65 +1,80 @@
+import asyncio
 from app.database import SessionLocal, engine
-from app import models, enums, crud
+from app import models, enums
+from sqlalchemy import text
 from datetime import date
 
-def seed():
+# Define the Rich Demo Scenario directly in Python
+DEMO_SCENARIO = {
+    "name": "The 'Marty' Tech Demo",
+    "description": "Interactive demo for Alice (Tech Lead) & Bob (Freelancer).",
+    "start_date": date(2024, 1, 1),
+    "gbp_to_usd_rate": 1.28
+}
+
+async def seed():
+    print("🌱 Seeding Rich Demo Data...")
     db = SessionLocal()
-    
-    # Clean slate for ID 1
-    existing = crud.get_scenario(db, 1)
-    if existing:
-        print("Deleting existing Scenario 1...")
-        crud.delete_scenario(db, 1)
-    
-    print("Creating Demo Scenario...")
-    scenario = models.Scenario(id=1, name="Cockpit Demo", start_date=date(2024, 1, 1))
-    db.add(scenario)
-    db.commit()
-    
-    owner = models.Owner(scenario_id=1, name="User")
-    db.add(owner)
-    db.commit()
-    
-    # 1. Main Bank Account
-    bank = models.Account(scenario_id=1, name="Main Bank", account_type=enums.AccountType.CASH, starting_balance=5000)
-    bank.owners.append(owner)
-    db.add(bank)
-    db.commit()
-    
-    # 2. Mortgage
-    mortgage = models.Account(
-        scenario_id=1, name="Home Loan", account_type=enums.AccountType.MORTGAGE, 
-        starting_balance=-350000, 
-        interest_rate=4.5,
-        payment_from_account_id=bank.id,
-        original_loan_amount=350000,
-        amortisation_period_years=25
-    )
-    mortgage.owners.append(owner)
-    db.add(mortgage)
-    
-    # 3. Income
-    inc = models.IncomeSource(
-        owner_id=owner.id, account_id=bank.id, name="Tech Salary", 
-        net_value=450000, # £4,500
-        cadence=enums.Cadence.MONTHLY, 
-        start_date=date(2024, 1, 1)
-    )
-    db.add(inc)
-    
-    # 4. Living Cost
-    cost = models.Cost(
-        scenario_id=1, account_id=bank.id, name="Living Expenses",
-        value=200000, # £2,000
-        cadence=enums.Cadence.MONTHLY,
-        start_date=date(2024, 1, 1),
-        is_recurring=True
-    )
-    db.add(cost)
-    
-    db.commit()
-    print("✅ Seed Complete! Scenario ID 1 is ready.")
-    db.close()
+    try:
+        # Check if scenario exists
+        existing = db.query(models.Scenario).filter(models.Scenario.name == DEMO_SCENARIO["name"]).first()
+        if existing:
+            print("✅ Demo scenario already exists. Skipping seed.")
+            return
+
+        # 1. Create Scenario
+        scenario = models.Scenario(**DEMO_SCENARIO)
+        db.add(scenario)
+        db.commit()
+        db.refresh(scenario)
+
+        # 2. Create Owners
+        alice = models.Owner(scenario_id=scenario.id, name="Alice", birth_date=date(1990, 6, 15), retirement_age=60)
+        bob = models.Owner(scenario_id=scenario.id, name="Bob", birth_date=date(1992, 3, 10), retirement_age=65)
+        db.add_all([alice, bob])
+        db.commit()
+        
+        # 3. Create Accounts
+        # Current Account
+        joint_acc = models.Account(scenario_id=scenario.id, name="Joint Current Account", account_type=enums.AccountType.CASH, starting_balance=5400, currency="GBP")
+        # Emergency Fund
+        marcus = models.Account(scenario_id=scenario.id, name="Emergency Fund (Marcus)", account_type=enums.AccountType.CASH, starting_balance=25000, interest_rate=4.5, min_balance=10000, currency="GBP")
+        # ISA
+        isa = models.Account(scenario_id=scenario.id, name="Alice S&S ISA", account_type=enums.AccountType.INVESTMENT, tax_wrapper=enums.TaxWrapper.ISA, starting_balance=45000, interest_rate=7.0, currency="GBP")
+        # Mortgage
+        mortgage = models.Account(scenario_id=scenario.id, name="Home Mortgage", account_type=enums.AccountType.MORTGAGE, starting_balance=-340000, original_loan_amount=380000, mortgage_start_date=date(2020,1,1), amortisation_period_years=25, interest_rate=5.5, fixed_interest_rate=2.1, fixed_rate_period_years=5, currency="GBP")
+        
+        db.add_all([joint_acc, marcus, isa, mortgage])
+        db.commit()
+        
+        # 4. Income & Costs
+        salary = models.IncomeSource(scenario_id=scenario.id, account_id=joint_acc.id, owner_id=alice.id, name="Alice Salary", net_value=8500000, cadence=enums.TransactionCadence.MONTHLY, is_pre_tax=True, start_date=date(2024,1,1))
+        freelance = models.IncomeSource(scenario_id=scenario.id, account_id=joint_acc.id, owner_id=bob.id, name="Bob Freelance", net_value=320000, cadence=enums.TransactionCadence.MONTHLY, start_date=date(2024,1,1))
+        
+        expenses = models.Cost(scenario_id=scenario.id, account_id=joint_acc.id, name="Living Expenses", value=180000, cadence=enums.TransactionCadence.MONTHLY, start_date=date(2024,1,1))
+        
+        db.add_all([salary, freelance, expenses])
+        db.commit()
+
+        # 5. Financial Events (The "Jagged Lines")
+        kitchen = models.FinancialEvent(scenario_id=scenario.id, name="New Kitchen", value=1500000, event_date=date(2025, 6, 1), event_type=enums.FinancialEventType.INCOME_EXPENSE, from_account_id=marcus.id, show_on_chart=True)
+        car = models.FinancialEvent(scenario_id=scenario.id, name="Car Purchase", value=800000, event_date=date(2026, 3, 1), event_type=enums.FinancialEventType.INCOME_EXPENSE, from_account_id=marcus.id, show_on_chart=True)
+
+        db.add_all([kitchen, car])
+        db.commit()
+
+        # 6. Automation Rules
+        sweep = models.AutomationRule(scenario_id=scenario.id, name="Sweep to Savings", rule_type=enums.RuleType.SWEEP, source_account_id=joint_acc.id, target_account_id=marcus.id, trigger_value=300000, priority=1, cadence=enums.TransactionCadence.MONTHLY)
+        
+        db.add(sweep)
+        db.commit()
+
+        print("✅ Rich Demo Data Seeded Successfully!")
+
+    except Exception as e:
+        print(f"❌ Error seeding data: {e}")
+    finally:
+        db.close()
 
 if __name__ == "__main__":
-    seed()
+    asyncio.run(seed())
