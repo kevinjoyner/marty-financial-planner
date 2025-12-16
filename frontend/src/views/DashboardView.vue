@@ -257,7 +257,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
             <Scorecards :metrics="metrics" :baselineMetrics="baselineMetrics" :isModelling="isModelling" />
         </div>
 
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
              
              <div class="flex justify-between items-start mb-4 flex-shrink-0">
                  <div class="flex items-center gap-4">
@@ -284,7 +284,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
              </div>
              
              <div class="flex flex-1 gap-6 min-h-0">
-                 <div class="flex-1 relative min-h-0 min-w-0">
+                 <div class="h-[450px] w-full relative min-w-0">
                      <div v-if="store.loading" class="absolute inset-0 flex items-center justify-center text-slate-400">Updating Model...</div>
                      <ProjectionChart v-else-if="store.simulationData && isSettingsLoaded" 
                         :data="store.simulationData" 
