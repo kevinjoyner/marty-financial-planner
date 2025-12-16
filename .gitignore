@@ -5,16 +5,18 @@ __pycache__/
 # SQLite databases
 *.db
 *.db-journal
+app/data/
 update_db.py
 
 # Pytest cache
 .pytest_cache/
-
-apply_changes.sh
-frontend/prototype_*.html
 
 # Frontend / Node
 frontend/node_modules/
 frontend/dist/
 frontend/npm-debug.log
 .DS_Store
+
+# Dev workflow
+apply_changes.sh
+frontend/prototype_*.html

@@ -59,13 +59,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=appuser:appuser . .
 
 # Copy Built Frontend Assets from Builder Stage
-# Note: We copy to a specific 'static' folder or overwrite the source frontend
 COPY --from=builder --chown=appuser:appuser /app/frontend/dist /app/frontend/dist
 
 COPY --chown=appuser:appuser start.sh .
 RUN chmod +x start.sh
 
-RUN mkdir /data && chown appuser:appuser /data
+# UPDATE: Create /app/data instead of /data to align with user permissions on Railway
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
 USER appuser
 
