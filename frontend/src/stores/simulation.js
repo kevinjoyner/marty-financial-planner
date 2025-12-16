@@ -90,7 +90,8 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      if (scenario.value) {
+      // Snapshot current state for history before saving
+      if (scenario.value && id !== 'new') { 
           history.value.unshift({
               timestamp: new Date(),
               description: description,
@@ -101,6 +102,12 @@ export const useSimulationStore = defineStore('simulation', () => {
 
       try {
           const payload = { ...data };
+          
+          // Ensure scenario_id is set for new items
+          if (id === 'new') {
+              payload.scenario_id = activeScenarioId.value;
+          }
+
           // Pence Conversion Logic
           if (payload.value !== undefined) payload.value = Math.round(payload.value * 100);
           if (payload.net_value !== undefined) payload.net_value = Math.round(payload.net_value * 100);
@@ -115,21 +122,36 @@ export const useSimulationStore = defineStore('simulation', () => {
               }
           }
 
-          if (type === 'account') await api.updateAccount(id, payload);
-          else if (type === 'income') await api.updateIncome(id, payload);
-          else if (type === 'cost') await api.updateCost(id, payload);
+          if (type === 'account') {
+              if (id === 'new') await api.createAccount(payload);
+              else await api.updateAccount(id, payload);
+          }
+          else if (type === 'income') {
+              if (id === 'new') await api.createIncome(payload);
+              else await api.updateIncome(id, payload);
+          }
+          else if (type === 'cost') {
+               if (id === 'new') await api.createCost(payload);
+               else await api.updateCost(id, payload);
+          }
           else if (type === 'transfer') {
-              if(id === 'new') await api.createTransfer({...payload, scenario_id: activeScenarioId.value});
+              if(id === 'new') await api.createTransfer(payload);
               else await api.updateTransfer(id, payload);
           }
           else if (type === 'event') {
-              if(id === 'new') await api.createFinancialEvent({...payload, scenario_id: activeScenarioId.value});
+              if(id === 'new') await api.createFinancialEvent(payload);
               else await api.updateFinancialEvent(id, payload);
           }
-          else if (type === 'owner') await api.updateOwner(id, payload);
-          else if (type === 'tax_limit') await api.updateTaxLimit(id, payload);
+          else if (type === 'owner') {
+               if (id === 'new') await api.createOwner(payload);
+               else await api.updateOwner(id, payload);
+          }
+          else if (type === 'tax_limit') {
+               if (id === 'new') await api.createTaxLimit(activeScenarioId.value, payload);
+               else await api.updateTaxLimit(id, payload);
+          }
           else if (type === 'rule') {
-              if(id === 'new') await api.createRule({...payload, scenario_id: activeScenarioId.value});
+              if(id === 'new') await api.createRule(payload);
               else await api.updateRule(id, payload);
           }
 

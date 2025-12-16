@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, computed, ref } from 'vue'
 import { useSimulationStore } from '../stores/simulation'
-import { Briefcase, Calendar, Pencil } from 'lucide-vue-next'
+import { Briefcase, Calendar, Pencil, Plus } from 'lucide-vue-next'
 import PinToggle from '../components/PinToggle.vue'
 import Drawer from '../components/Drawer.vue'
 import { formatCurrency } from '../utils/format'
@@ -22,6 +22,7 @@ const incomeByOwner = computed(() => {
 })
 
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
+const ownerOptions = computed(() => store.scenario?.owners.map(o => ({ id: o.id, name: o.name })) || [])
 const formatPounds = (val) => formatCurrency(val)
 
 const openEdit = (item) => {
@@ -35,13 +36,29 @@ const openEdit = (item) => {
     }
 }
 
+const openCreate = () => {
+    const defaultOwnerId = store.scenario.owners.length > 0 ? store.scenario.owners[0].id : null;
+    const newItem = {
+        id: 'new',
+        name: 'New Income Source',
+        owner_id: defaultOwnerId,
+        net_value: 2000,
+        cadence: 'monthly',
+        start_date: new Date().toISOString().split('T')[0],
+        is_pre_tax: false
+    }
+    editingItem.value = newItem;
+    form.value = { ...newItem }
+}
+
 const save = async () => {
     const payload = { ...form.value }
-    payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100)
-    payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100)
-    payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100)
+    // These are floats in the form, but should be converted to pence in store
+    // The store handles *100 conversion for 'net_value', need to ensure others are handled there or here.
+    // Store saveEntity handles the main value. For specialised fields we rely on the store.
+    // Let's ensure consistency.
     
-    const success = await store.saveEntity('income', editingItem.value.id, payload)
+    const success = await store.saveEntity('income', editingItem.value.id, payload, `Saved ${form.value.name}`)
     if (success) editingItem.value = null
 }
 
@@ -53,9 +70,14 @@ const remove = async () => {
 
 <template>
     <div class="flex flex-col h-full max-w-5xl mx-auto w-full pb-24">
-        <header class="mb-8">
-            <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Income Sources</h1>
-            <p class="text-sm text-slate-500 mt-1">Manage and model your earnings.</p>
+        <header class="mb-8 flex justify-between items-start">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Income Sources</h1>
+                <p class="text-sm text-slate-500 mt-1">Manage and model your earnings.</p>
+            </div>
+            <button @click="openCreate" class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                <Plus class="w-4 h-4" /> Add Income
+            </button>
         </header>
 
         <div v-if="!store.scenario" class="text-slate-400 italic">Loading...</div>
@@ -99,10 +121,21 @@ const remove = async () => {
                     </table>
                 </div>
             </div>
+             <div v-if="incomeByOwner.length === 0" class="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                <p class="text-slate-500 mb-4">No income sources defined yet.</p>
+                <button @click="openCreate" class="text-primary font-medium hover:underline">Add your first income source</button>
+             </div>
         </div>
 
-        <Drawer :isOpen="!!editingItem" :title="editingItem?.name || 'Edit Income'" @close="editingItem = null" @save="save">
+        <Drawer :isOpen="!!editingItem" :title="editingItem?.name || 'New Income'" @close="editingItem = null" @save="save">
             <div v-if="editingItem" class="space-y-6">
+                <div v-if="editingItem.id === 'new'">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Owner</label>
+                    <select v-model="form.owner_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
+                        <option v-for="o in ownerOptions" :key="o.id" :value="o.id">{{ o.name }}</option>
+                    </select>
+                </div>
+                
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Source Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                 
                 <div class="p-4 bg-emerald-50 border border-emerald-100 rounded-lg space-y-4">
@@ -114,7 +147,7 @@ const remove = async () => {
                     <div>
                         <div class="flex justify-between items-center mb-1">
                             <label class="block text-sm font-medium text-slate-700">{{ form.is_pre_tax ? 'Gross Amount' : 'Net Amount' }}</label>
-                            <PinToggle :item="{ id: `inc-${editingItem.id}`, realId: editingItem.id, type: 'income', field: 'net_value', label: editingItem.name, value: editingItem.net_value / 100, format: 'currency' }" />
+                            <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}`, realId: editingItem.id, type: 'income', field: 'net_value', label: editingItem.name, value: editingItem.net_value / 100, format: 'currency' }" />
                         </div>
                         <div class="relative"><span class="absolute left-3 top-2 text-slate-400">£</span><input type="number" v-model="form.net_value" class="w-full border border-slate-300 rounded-md pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"></div>
                     </div>
@@ -124,14 +157,14 @@ const remove = async () => {
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block text-xs font-medium text-slate-600">Salary Sacrifice (£)</label>
-                                    <PinToggle :item="{ id: `inc-${editingItem.id}-sac`, realId: editingItem.id, type: 'income', field: 'salary_sacrifice_value', label: `${editingItem.name} Sacrifice`, value: editingItem.salary_sacrifice_value ? editingItem.salary_sacrifice_value / 100 : 0, format: 'currency' }" />
+                                    <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-sac`, realId: editingItem.id, type: 'income', field: 'salary_sacrifice_value', label: `${editingItem.name} Sacrifice`, value: editingItem.salary_sacrifice_value ? editingItem.salary_sacrifice_value / 100 : 0, format: 'currency' }" />
                                 </div>
                                 <input type="number" v-model="form.salary_sacrifice_value" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm">
                             </div>
                              <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block text-xs font-medium text-slate-600">Into Account</label>
-                                    <PinToggle :item="{ id: `inc-${editingItem.id}-sac-acc`, realId: editingItem.id, type: 'income', field: 'salary_sacrifice_account_id', label: `${editingItem.name} Sac. Acc`, value: editingItem.salary_sacrifice_account_id, inputType: 'select', options: accountOptions }" />
+                                    <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-sac-acc`, realId: editingItem.id, type: 'income', field: 'salary_sacrifice_account_id', label: `${editingItem.name} Sac. Acc`, value: editingItem.salary_sacrifice_account_id, inputType: 'select', options: accountOptions }" />
                                 </div>
                                 <select v-model="form.salary_sacrifice_account_id" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm bg-white">
                                     <option :value="null">-- None --</option>
@@ -142,7 +175,7 @@ const remove = async () => {
                         <div>
                             <div class="flex justify-between items-center mb-1">
                                 <label class="block text-xs font-medium text-slate-600">Employer Contribution (£)</label>
-                                <PinToggle :item="{ id: `inc-${editingItem.id}-emp`, realId: editingItem.id, type: 'income', field: 'employer_pension_contribution', label: `${editingItem.name} Employer Contrib`, value: editingItem.employer_pension_contribution ? editingItem.employer_pension_contribution / 100 : 0, format: 'currency' }" />
+                                <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-emp`, realId: editingItem.id, type: 'income', field: 'employer_pension_contribution', label: `${editingItem.name} Employer Contrib`, value: editingItem.employer_pension_contribution ? editingItem.employer_pension_contribution / 100 : 0, format: 'currency' }" />
                             </div>
                             <input type="number" v-model="form.employer_pension_contribution" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm">
                             <p class="text-[10px] text-slate-400 mt-1">Added to Pension (Tax Free)</p>
@@ -152,24 +185,24 @@ const remove = async () => {
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                         <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Frequency</label><PinToggle :item="{ id: `inc-${editingItem.id}-freq`, realId: editingItem.id, type: 'income', field: 'cadence', label: `${editingItem.name} Freq`, value: editingItem.cadence, inputType: 'select', options: [{id:'monthly',name:'Monthly'},{id:'quarterly',name:'Quarterly'},{id:'annually',name:'Annually'}] }" /></div>
+                         <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Frequency</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-freq`, realId: editingItem.id, type: 'income', field: 'cadence', label: `${editingItem.name} Freq`, value: editingItem.cadence, inputType: 'select', options: [{id:'monthly',name:'Monthly'},{id:'quarterly',name:'Quarterly'},{id:'annually',name:'Annually'}] }" /></div>
                          <select v-model="form.cadence" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option></select>
                     </div>
                     <div>
-                         <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Start Date</label><PinToggle :item="{ id: `inc-${editingItem.id}-start`, realId: editingItem.id, type: 'income', field: 'start_date', label: `${editingItem.name} Start`, value: editingItem.start_date, inputType: 'date' }" /></div>
+                         <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Start Date</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-start`, realId: editingItem.id, type: 'income', field: 'start_date', label: `${editingItem.name} Start`, value: editingItem.start_date, inputType: 'date' }" /></div>
                          <input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                     </div>
                 </div>
                 
                 <div>
-                     <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Deposit Into</label><PinToggle :item="{ id: `inc-${editingItem.id}-dep`, realId: editingItem.id, type: 'income', field: 'account_id', label: `${editingItem.name} Dep`, value: editingItem.account_id, inputType: 'select', options: accountOptions }" /></div>
+                     <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Deposit Into</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-dep`, realId: editingItem.id, type: 'income', field: 'account_id', label: `${editingItem.name} Dep`, value: editingItem.account_id, inputType: 'select', options: accountOptions }" /></div>
                      <select v-model="form.account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
                         <option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option>
                      </select>
                 </div>
                 
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea v-model="form.notes" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></textarea></div>
-                <div class="pt-6 border-t border-slate-100">
+                <div v-if="editingItem.id !== 'new'" class="pt-6 border-t border-slate-100">
                     <button type="button" @click="remove" class="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors">Delete Income Source</button>
                 </div>
             </div>
