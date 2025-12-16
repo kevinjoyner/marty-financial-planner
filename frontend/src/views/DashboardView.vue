@@ -144,35 +144,50 @@ const calculateMetrics = (data) => {
     const lastPoint = data.data_points[data.data_points.length - 1];
     const firstPoint = data.data_points[0];
     
+    // 1. Current Net Worth (Start)
     let current_net_worth_pence = 0;
     if (store.scenario) {
         store.scenario.accounts.forEach(acc => {
             if (acc.account_type !== 'RSU Grant') {
                 const bal = firstPoint.account_balances[acc.id] || 0;
-                current_net_worth_pence += (bal * 100); 
+                current_net_worth_pence += Math.round(bal * 100); 
             }
         });
     }
 
-    const projected_net_worth_pence = lastPoint.balance * 100; 
+    // 2. Projected Net Worth (End)
+    const projected_net_worth_pence = Math.round(lastPoint.balance * 100); 
+
+    // 3. Net Contributions (Total Saved from Income)
     let net_contributions_pence = 0;
     data.data_points.forEach(dp => {
         Object.values(dp.flows).forEach(f => {
-            // flow values are in pounds (float), convert to pence
             const flow_val = (f.income + (f.employer_contribution || 0) - f.costs - f.tax - f.cgt);
             net_contributions_pence += (flow_val * 100);
         });
     });
-    // Removed the double multiplication here
     net_contributions_pence = Math.round(net_contributions_pence); 
     
+    // 4. Investment Growth (Passive Gain)
     const total_delta_pence = projected_net_worth_pence - current_net_worth_pence; 
     const investment_growth_pence = total_delta_pence - net_contributions_pence;
+    
+    // 5. Annual Return (on Invested Capital)
     const months = data.data_points.length;
     const years = months / 12;
-    const start_val = firstPoint.balance;
-    const end_val = lastPoint.balance;
-    const annual_return = (start_val > 0 && years > 0) ? (Math.pow(end_val/start_val, 1/years) - 1) * 100 : 0;
+    
+    // Denominator: Initial Wealth + New Savings
+    const total_invested_pence = current_net_worth_pence + net_contributions_pence;
+    
+    let annual_return = 0;
+    if (total_invested_pence > 0 && years > 0) {
+        // Wealth Ratio = End Value / Invested Value
+        // (1 + r)^t = Ratio  =>  r = Ratio^(1/t) - 1
+        const wealth_ratio = projected_net_worth_pence / total_invested_pence;
+        if (wealth_ratio > 0) {
+            annual_return = (Math.pow(wealth_ratio, 1/years) - 1) * 100;
+        }
+    }
 
     return { 
         current_net_worth: current_net_worth_pence, 
