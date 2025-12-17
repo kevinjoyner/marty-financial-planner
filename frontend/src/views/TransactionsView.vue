@@ -117,9 +117,10 @@ const openEdit = (item) => {
         account_id: item.account_id || item.from_account_id,
         value: Math.abs(item.value / 100), 
         start_date: item.start_date || item.event_date,
+        end_date: item.end_date, // Load end_date
         flowType: flowType,
         frequencyMode: (item.type === 'cost' || item.type === 'transfer') ? item.cadence : 'once',
-        show_on_chart: item.show_on_chart || false // NEW Field
+        show_on_chart: item.show_on_chart || false 
     }
 }
 
@@ -131,6 +132,7 @@ const openNew = () => {
         flowType: 'expense', 
         frequencyMode: 'once', 
         start_date: new Date().toISOString().split('T')[0],
+        end_date: null,
         show_on_chart: false
     }
 }
@@ -146,6 +148,10 @@ const save = async () => {
         currency: 'GBP', 
         start_date: data.start_date,
     };
+
+    if (isRecurring) {
+        payload.end_date = data.end_date || null; // Add end_date to payload
+    }
 
     if (isTransfer) {
         payload.from_account_id = data.from_account_id;
@@ -376,9 +382,15 @@ const flowLabel = computed(() => {
                     </select>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">{{ form.frequencyMode === 'once' ? 'Date' : 'Start Date' }}</label>
-                    <input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">{{ form.frequencyMode === 'once' ? 'Date' : 'Start Date' }}</label>
+                        <input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
+                    <div v-if="form.frequencyMode !== 'once'">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">End Date (Optional)</label>
+                        <input type="date" v-model="form.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
                 </div>
                 
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notes</label><textarea v-model="form.notes" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></textarea></div>
