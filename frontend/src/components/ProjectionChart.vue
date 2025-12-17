@@ -23,7 +23,8 @@ const yMax = ref(null);
 // --- 1. Custom Gantt Label Plugin ---
 const ganttLabelPlugin = {
     id: 'ganttLabels',
-    afterDraw: (chart) => {
+    // CHANGED: Use afterDatasetsDraw to render BEFORE the Tooltip, but AFTER the lines.
+    afterDatasetsDraw: (chart) => {
         const { ctx, scales, chartArea } = chart;
         const annotations = chart.config.options.plugins.ganttData || [];
         
