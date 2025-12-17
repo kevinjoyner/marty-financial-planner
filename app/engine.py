@@ -107,9 +107,6 @@ def _get_contribution_headroom(context: ProjectionContext, account_id: int, tax_
         if headroom < min_headroom: min_headroom = headroom
     return min_headroom
 
-# ... (Processing functions: Income, Cost, Transfer, Event, RSU, Rule, Mortgage, Interest) ...
-# ... (Standard logic maintained) ...
-
 def _process_income(scenario: models.Scenario, context: ProjectionContext):
     seen_ids = set(); all_income_sources = []
     for owner in scenario.owners:
@@ -505,7 +502,15 @@ def _detect_milestones(context: ProjectionContext):
     for acc in context.all_accounts:
         curr_bal = context.account_balances[acc.id]
         prev_bal = context.prev_balances.get(acc.id, acc.starting_balance)
+        
+        # Only count CASH and INVESTMENT as "Liquid"
+        # Explicitly Exclude PENSION, PROPERTY, RSU_GRANT
         if acc.account_type in [enums.AccountType.CASH, enums.AccountType.INVESTMENT]:
+            
+            # FIX: Pension wrappers are NOT liquid, even if Type is Investment/Cash
+            if acc.tax_wrapper == enums.TaxWrapper.PENSION:
+                continue
+
             if curr_bal > 0: curr_liquid += curr_bal
             if prev_bal > 0: prev_liquid += prev_bal
         elif acc.account_type in [enums.AccountType.MORTGAGE, enums.AccountType.LOAN]:
@@ -513,9 +518,9 @@ def _detect_milestones(context: ProjectionContext):
             if prev_bal < 0: prev_debt += abs(prev_bal)
     
     # Milestone: Liquid Assets exceed Total Debt for the first time
-    # logic updated: >= transition from state < to state >=
-    if prev_liquid < prev_debt and curr_liquid >= curr_debt:
-         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid Assets > Liabilities", type="milestone"))
+    # Check prev_debt > 0 to ensure we actually *had* debt to clear
+    if prev_liquid < prev_debt and curr_liquid >= curr_debt and prev_debt > 0:
+         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
 
 def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schemas.SimulationOverride]):
     for override in overrides:
