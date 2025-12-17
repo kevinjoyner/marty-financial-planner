@@ -45,14 +45,24 @@ const openCreate = () => {
         net_value: 2000,
         cadence: 'monthly',
         start_date: new Date().toISOString().split('T')[0],
-        is_pre_tax: false
+        is_pre_tax: false,
+        salary_sacrifice_value: 0,
+        taxable_benefit_value: 0,
+        employer_pension_contribution: 0
     }
     editingItem.value = newItem;
     form.value = { ...newItem }
 }
 
 const save = async () => {
-    const payload = { ...form.value }
+    // Manually handle Pence conversion for specific income fields
+    // The store handles 'net_value' automatically, but we must handle the others here to be safe.
+    const payload = { ...form.value };
+    
+    if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
+    if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
+    if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
+
     const success = await store.saveEntity('income', editingItem.value.id, payload, `Saved ${form.value.name}`)
     if (success) editingItem.value = null
 }
@@ -167,6 +177,16 @@ const remove = async () => {
                                 </select>
                             </div>
                         </div>
+                        
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-xs font-medium text-slate-600">Taxable Benefits (BiK) (£)</label>
+                                <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-bik`, realId: editingItem.id, type: 'income', field: 'taxable_benefit_value', label: `${editingItem.name} BiK`, value: editingItem.taxable_benefit_value ? editingItem.taxable_benefit_value / 100 : 0, format: 'currency' }" />
+                            </div>
+                            <input type="number" v-model="form.taxable_benefit_value" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm">
+                            <p class="text-[10px] text-slate-400 mt-1">Added to Taxable Income, but not paid as cash.</p>
+                        </div>
+
                         <div>
                             <div class="flex justify-between items-center mb-1">
                                 <label class="block text-xs font-medium text-slate-600">Employer Contribution (£)</label>
