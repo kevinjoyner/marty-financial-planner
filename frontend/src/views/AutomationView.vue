@@ -31,8 +31,27 @@ watch(() => store.scenario, (newScenario) => {
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
 const getAccountName = (id) => { const acc = accountOptions.value.find(a => a.id === id); return acc ? acc.name : '?' }
 
-const openEdit = (rule) => { editingItem.value = rule; form.value = { ...rule, trigger_value: rule.trigger_value / 100, transfer_value: rule.transfer_value ? rule.transfer_value / 100 : 0 }; }
-const openNew = () => { editingItem.value = { id: 'new' }; form.value = { name: 'New Rule', rule_type: 'sweep', trigger_value: 0, cadence: 'monthly', priority: localRules.value.length }; }
+const openEdit = (rule) => { 
+    editingItem.value = rule; 
+    form.value = { 
+        ...rule, 
+        trigger_value: rule.trigger_value / 100, 
+        transfer_value: rule.transfer_value ? rule.transfer_value / 100 : 0 
+    }; 
+}
+
+const openNew = () => { 
+    editingItem.value = { id: 'new' }; 
+    form.value = { 
+        name: 'New Rule', 
+        rule_type: 'sweep', 
+        trigger_value: 0, 
+        cadence: 'monthly', 
+        priority: localRules.value.length,
+        start_date: new Date().toISOString().split('T')[0], // Default to today
+        end_date: null
+    }; 
+}
 
 const save = async () => {
     const payload = { ...form.value }
@@ -83,15 +102,30 @@ const remove = async () => {
         <Drawer :isOpen="!!editingItem" :title="editingItem?.name || 'Edit Rule'" @close="editingItem = null" @save="save">
             <div v-if="editingItem" class="space-y-4">
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Rule Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Type</label><select v-model="form.rule_type" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option value="sweep">Sweep (Overflow)</option><option value="top_up">Top-up (Rescue)</option><option value="transfer">Smart Transfer</option><option value="mortgage_smart">Mortgage Overpay</option></select></div>
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Source</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-src`, realId: editingItem.id, type: 'rule', field: 'source_account_id', label: `${editingItem.name} Src`, value: editingItem.source_account_id, inputType: 'select', options: accountOptions }" /></div><select v-model="form.source_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select></div>
                     <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Target</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-tgt`, realId: editingItem.id, type: 'rule', field: 'target_account_id', label: `${editingItem.name} Tgt`, value: editingItem.target_account_id, inputType: 'select', options: accountOptions }" /></div><select v-model="form.target_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select></div>
                 </div>
+                
                 <div class="grid grid-cols-2 gap-4">
                      <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Trigger (£)</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-trig`, realId: editingItem.id, type: 'rule', field: 'trigger_value', label: `${editingItem.name} Trigger`, value: editingItem.trigger_value / 100, format: 'currency' }" /></div><input type="number" v-model="form.trigger_value" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                      <div v-if="form.rule_type !== 'sweep' && form.rule_type !== 'top_up'"><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Value / %</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-val`, realId: editingItem.id, type: 'rule', field: 'transfer_value', label: `${editingItem.name} Value`, value: editingItem.transfer_value ? editingItem.transfer_value / 100 : 0, format: 'currency' }" /></div><input type="number" v-model="form.transfer_value" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                 </div>
+
+                <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                    <div>
+                        <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Start Date</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-start`, realId: editingItem.id, type: 'rule', field: 'start_date', label: `${editingItem.name} Start`, value: editingItem.start_date, inputType: 'date' }" /></div>
+                        <input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">End Date (Optional)</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `rule-${editingItem.id}-end`, realId: editingItem.id, type: 'rule', field: 'end_date', label: `${editingItem.name} End`, value: editingItem.end_date, inputType: 'date' }" /></div>
+                        <input type="date" v-model="form.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
+                </div>
+
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea v-model="form.notes" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></textarea></div>
                 <div class="pt-6 border-t border-slate-100">
                     <button type="button" @click="remove" class="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors">Delete Rule</button>
