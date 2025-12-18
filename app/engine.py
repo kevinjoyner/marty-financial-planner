@@ -526,11 +526,6 @@ def _detect_milestones(context: ProjectionContext):
             if acc.tax_wrapper == enums.TaxWrapper.PENSION:
                 continue
 
-            
-            # FIX: Pension wrappers are NOT liquid, even if Type is Investment/Cash
-            if acc.tax_wrapper == enums.TaxWrapper.PENSION:
-                continue
-
             if curr_bal > 0: curr_liquid += curr_bal
             if prev_bal > 0: prev_liquid += prev_bal
         elif acc.account_type in [enums.AccountType.MORTGAGE, enums.AccountType.LOAN]:
@@ -538,9 +533,6 @@ def _detect_milestones(context: ProjectionContext):
             if prev_bal < 0: prev_debt += abs(prev_bal)
     
     # Milestone: Liquid Assets exceed Total Debt for the first time
-    # Check prev_debt > 0 to ensure we actually *had* debt to clear
-    if prev_liquid < prev_debt and curr_liquid >= curr_debt and prev_debt > 0:
-         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
     # Check prev_debt > 0 to ensure we actually *had* debt to clear
     if prev_liquid < prev_debt and curr_liquid >= curr_debt and prev_debt > 0:
          context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
