@@ -23,7 +23,6 @@ const yMax = ref(null);
 // --- 1. Custom Gantt Label Plugin ---
 const ganttLabelPlugin = {
     id: 'ganttLabels',
-    // CHANGED: Use afterDatasetsDraw to render BEFORE the Tooltip, but AFTER the lines.
     afterDatasetsDraw: (chart) => {
         const { ctx, scales, chartArea } = chart;
         const annotations = chart.config.options.plugins.ganttData || [];
@@ -36,21 +35,17 @@ const ganttLabelPlugin = {
         const PADDING_X = 8;
         const MARGIN = 4;
 
-        // Sort by Date
         const sortedAnns = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
         const drawItems = [];
 
         sortedAnns.forEach(ann => {
             const xPos = scales.x.getPixelForValue(ann.date);
-            
-            // Skip if off-screen
             if (xPos === undefined || isNaN(xPos) || xPos < chartArea.left || xPos > chartArea.right) return;
 
             ctx.font = "bold 10px Inter, sans-serif"; 
             const textWidth = ctx.measureText(ann.label).width;
             const boxWidth = textWidth + (PADDING_X * 2);
             
-            // Lane Allocation
             let laneIndex = 0;
             while (true) {
                 if (!lanes[laneIndex] || xPos > (lanes[laneIndex] + MARGIN)) {
@@ -59,48 +54,25 @@ const ganttLabelPlugin = {
                 }
                 laneIndex++;
             }
-            lanes[laneIndex] = xPos + boxWidth; // Update lane end
+            lanes[laneIndex] = xPos + boxWidth; 
 
             const yPos = BASE_Y + (laneIndex * ROW_HEIGHT);
             
-            // Styling Logic
             let bgColor, borderColor, textColor, lineDash;
-            
             if (ann.isBaseline) {
-                // Ghost Style for Baseline
-                bgColor = '#f1f5f9';     // Slate-100
-                borderColor = '#94a3b8'; // Slate-400
-                textColor = '#64748b';   // Slate-500
-                lineDash = [3, 3];
+                bgColor = '#f1f5f9'; borderColor = '#94a3b8'; textColor = '#64748b'; lineDash = [3, 3];
             } else {
-                // Vivid Style for Simulation
-                if (ann.type === 'milestone') bgColor = '#16a34a'; // Green
-                else if (ann.type === 'transaction') bgColor = '#635bff'; // Primary
-                else if (ann.type === 'insolvency') bgColor = '#dc2626'; // Red
-                else bgColor = '#94a3b8'; // Default
-                
-                borderColor = bgColor;
-                textColor = '#ffffff';
-                lineDash = [];
+                if (ann.type === 'milestone') bgColor = '#16a34a';
+                else if (ann.type === 'transaction') bgColor = '#635bff';
+                else if (ann.type === 'insolvency') bgColor = '#dc2626';
+                else bgColor = '#94a3b8';
+                borderColor = bgColor; textColor = '#ffffff'; lineDash = [];
             }
 
-            drawItems.push({
-                x: xPos,
-                y: yPos,
-                w: boxWidth,
-                h: ROW_HEIGHT - 4,
-                bgColor: bgColor,
-                borderColor: borderColor,
-                textColor: textColor,
-                lineDash: lineDash,
-                label: ann.label,
-                isBaseline: ann.isBaseline
-            });
+            drawItems.push({ x: xPos, y: yPos, w: boxWidth, h: ROW_HEIGHT - 4, bgColor, borderColor, textColor, lineDash, label: ann.label, isBaseline: ann.isBaseline });
         });
 
         ctx.save();
-
-        // PASS 1: Vertical Lines
         ctx.lineWidth = 1;
         drawItems.forEach(item => {
             ctx.beginPath();
@@ -114,41 +86,24 @@ const ganttLabelPlugin = {
         ctx.setLineDash([]); 
         ctx.globalAlpha = 1.0;
 
-        // PASS 2: Labels
         ctx.font = "bold 10px Inter, sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
 
         drawItems.forEach(item => {
-            // Smart Flip Logic: Check for right-edge overflow
             let boxX = item.x;
-            if ((boxX + item.w) > chartArea.right) {
-                boxX = item.x - item.w; // Flip to left side of line
-            }
+            if ((boxX + item.w) > chartArea.right) boxX = item.x - item.w;
 
-            // Box Background
             ctx.fillStyle = item.bgColor;
-            
-            // Ghost Box Border
             if (item.isBaseline) {
-                ctx.beginPath();
-                ctx.lineWidth = 1;
-                ctx.setLineDash([2, 2]);
-                ctx.strokeStyle = item.borderColor;
-                ctx.roundRect(boxX, item.y, item.w, item.h, 4);
-                ctx.stroke();
-                ctx.fill(); 
+                ctx.beginPath(); ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.strokeStyle = item.borderColor;
+                ctx.roundRect(boxX, item.y, item.w, item.h, 4); ctx.stroke(); ctx.fill(); 
             } else {
-                ctx.beginPath();
-                ctx.roundRect(boxX, item.y, item.w, item.h, 4);
-                ctx.fill();
+                ctx.beginPath(); ctx.roundRect(boxX, item.y, item.w, item.h, 4); ctx.fill();
             }
-
-            // Text
             ctx.fillStyle = item.textColor;
             ctx.fillText(item.label, boxX + PADDING_X, item.y + (item.h)/2);
         });
-
         ctx.restore();
     }
 };
@@ -158,7 +113,6 @@ const plugins = [ganttLabelPlugin];
 // --- 2. Data Processing ---
 const chartData = computed(() => {
   if (!props.data) return { labels: [], datasets: [] }
-  
   const simPoints = props.data.data_points; 
   const basePoints = store.baselineData ? store.baselineData.data_points : null;
   const labels = simPoints.map(p => p.date); 
@@ -193,15 +147,10 @@ const chartData = computed(() => {
   return { labels, datasets }
 })
 
-// --- 3. Pre-process Annotations (Merge Baseline + Simulation) ---
 const preparedData = computed(() => {
-    if (!props.data || !props.data.data_points) {
-        return { annotations: [], laneCount: 0 };
-    }
-
+    if (!props.data || !props.data.data_points) return { annotations: [], laneCount: 0 };
     const availableDates = props.data.data_points.map(p => p.date);
     const annotations = [];
-    
     const processList = (list, isBaseline) => {
         if (!list) return;
         list.forEach(a => {
@@ -210,73 +159,53 @@ const preparedData = computed(() => {
                 const d = new Date(dStr);
                 return d.getFullYear() === annDate.getFullYear() && d.getMonth() === annDate.getMonth();
             });
-            if (matchedLabel) {
-                annotations.push({ ...a, date: matchedLabel, isBaseline });
-            }
+            if (matchedLabel) annotations.push({ ...a, date: matchedLabel, isBaseline });
         });
     };
-
     processList(props.data.annotations, false);
-
     if (store.activeOverrideCount > 0 && store.baselineData && store.baselineData.annotations) {
         processList(store.baselineData.annotations, true);
     }
-    
-    // Lane Calc for Padding
     const sorted = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
     const lanes = [];
     const startDate = new Date(availableDates[0]).getTime();
     const endDate = new Date(availableDates[availableDates.length - 1]).getTime();
     const totalDuration = endDate - startDate;
     const LABEL_BUFFER_MS = totalDuration * 0.12; 
-
     sorted.forEach(ann => {
         const annTime = new Date(ann.date).getTime();
         let laneIndex = 0;
         while (true) {
              if (!lanes[laneIndex] || annTime > (lanes[laneIndex] + LABEL_BUFFER_MS)) {
-                 lanes[laneIndex] = annTime;
-                 break;
+                 lanes[laneIndex] = annTime; break;
              }
              laneIndex++;
         }
     });
-
     return { annotations: sorted, laneCount: Math.max(0, lanes.length) };
 });
+
+// Dynamic Container Height Logic
+// Ensures chart area is never crushed by labels
+const containerHeight = computed(() => {
+    const laneCount = preparedData.value.laneCount;
+    // Base Chart Area (350) + Top Padding (20) + Label Area (50 + lanes * 28 + 10)
+    return 350 + 20 + (50 + (laneCount * 28) + 10);
+})
 
 const chartOptions = computed(() => {
     const laneCount = preparedData.value.laneCount;
     const bottomPadding = 50 + (laneCount * 28) + 10; 
-
     return { 
         responsive: true, 
         maintainAspectRatio: false, 
         interaction: { mode: 'index', intersect: false }, 
         clip: false, 
-        layout: {
-            padding: {
-                bottom: bottomPadding,
-                top: 20
-            }
-        },
-        plugins: { 
-            legend: { display: false }, 
-            annotation: { annotations: {} }, 
-            ganttData: preparedData.value.annotations, 
-            tooltip: { itemSort: (a, b) => b.raw - a.raw } 
-        }, 
+        layout: { padding: { bottom: bottomPadding, top: 20 } },
+        plugins: { legend: { display: false }, annotation: { annotations: {} }, ganttData: preparedData.value.annotations, tooltip: { itemSort: (a, b) => b.raw - a.raw } }, 
         scales: { 
-            y: { 
-                min: yMin.value, 
-                max: yMax.value, 
-                grid: { color: '#f1f5f9' }, 
-                ticks: { callback: (val) => '£' + (val/1000).toFixed(0) + 'k' } 
-            }, 
-            x: { 
-                grid: { display: false },
-                ticks: { maxTicksLimit: 8, maxRotation: 0 } 
-            } 
+            y: { min: yMin.value, max: yMax.value, grid: { color: '#f1f5f9' }, ticks: { callback: (val) => '£' + (val/1000).toFixed(0) + 'k' } }, 
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } } 
         } 
     }
 })
@@ -297,7 +226,7 @@ watch(() => props.freezeAxis, (isFrozen) => {
 </script>
 
 <template>
-    <div class="relative w-full h-full min-h-[450px]">
+    <div class="relative w-full transition-[height] duration-300 ease-in-out" :style="{ height: containerHeight + 'px' }">
         <Line v-if="chartData.datasets.length > 0" :data="chartData" :options="chartOptions" :plugins="plugins" />
         <div v-else class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
             Select accounts to view projection.

@@ -11,7 +11,7 @@ const store = useSimulationStore()
 const alertsExpanded = ref(false)
 const isAxisFrozen = ref(false)
 
-// --- Horizon / Duration Logic (Restored) ---
+// --- Horizon / Duration Logic ---
 const horizonMode = ref('years')
 const horizonYears = ref(10)
 const horizonMonths = ref(0)
@@ -21,7 +21,6 @@ const syncInputsFromStore = () => {
     const totalMonths = store.simulationMonths;
     horizonYears.value = Math.floor(totalMonths / 12);
     horizonMonths.value = totalMonths % 12;
-    // Calculate Date from Start + Duration
     if (store.scenario) {
         const start = new Date(store.scenario.start_date);
         const end = new Date(start);
@@ -35,33 +34,28 @@ const updateHorizon = () => {
     const start = new Date(store.scenario.start_date);
     
     if (horizonMode.value === 'years') {
-        // Calculate Duration -> Date
         const totalMonths = (parseInt(horizonYears.value || 0) * 12) + parseInt(horizonMonths.value || 0);
         store.setDuration(totalMonths);
-        
         const newDate = new Date(start);
         newDate.setMonth(start.getMonth() + totalMonths);
         horizonDate.value = newDate.toISOString().split('T')[0];
     } else {
-        // Calculate Date -> Duration
         const end = new Date(horizonDate.value);
         let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
         if (diffMonths < 1) diffMonths = 1;
-        
         store.setDuration(diffMonths);
         horizonYears.value = Math.floor(diffMonths / 12);
         horizonMonths.value = diffMonths % 12;
     }
 }
 
-// Watch scenario to sync inputs initially
 watch(() => store.scenario, (val) => { if (val) syncInputsFromStore(); });
 
 // --- Persistence & Settings ---
 const visibleAccountIds = ref([])
 const aggregationMode = ref('account') 
 const isSettingsLoaded = ref(false)
-const hiddenAlertSignatures = ref(new Set()) // Stores "type:account_id" strings
+const hiddenAlertSignatures = ref(new Set()) 
 
 const loadSettings = () => {
     if (!store.activeScenarioId) return;
@@ -130,7 +124,7 @@ const ignoredCount = computed(() => rawAlerts.value.length - filteredAlerts.valu
 const hideAlert = (alert) => {
     const sig = `${alert.source_type}:${alert.account_id}`;
     hiddenAlertSignatures.value.add(sig);
-    saveSettings(); // Force save
+    saveSettings(); 
 }
 
 const resetHiddenAlerts = () => {
@@ -144,7 +138,6 @@ const calculateMetrics = (data) => {
     const lastPoint = data.data_points[data.data_points.length - 1];
     const firstPoint = data.data_points[0];
     
-    // 1. Current Net Worth (Start)
     let current_net_worth_pence = 0;
     if (store.scenario) {
         store.scenario.accounts.forEach(acc => {
@@ -155,10 +148,8 @@ const calculateMetrics = (data) => {
         });
     }
 
-    // 2. Projected Net Worth (End)
     const projected_net_worth_pence = Math.round(lastPoint.balance * 100); 
 
-    // 3. Net Contributions (Total Saved from Income)
     let net_contributions_pence = 0;
     data.data_points.forEach(dp => {
         Object.values(dp.flows).forEach(f => {
@@ -168,21 +159,16 @@ const calculateMetrics = (data) => {
     });
     net_contributions_pence = Math.round(net_contributions_pence); 
     
-    // 4. Investment Growth (Passive Gain)
     const total_delta_pence = projected_net_worth_pence - current_net_worth_pence; 
     const investment_growth_pence = total_delta_pence - net_contributions_pence;
     
-    // 5. Annual Return (on Invested Capital)
     const months = data.data_points.length;
     const years = months / 12;
     
-    // Denominator: Initial Wealth + New Savings
     const total_invested_pence = current_net_worth_pence + net_contributions_pence;
     
     let annual_return = 0;
     if (total_invested_pence > 0 && years > 0) {
-        // Wealth Ratio = End Value / Invested Value
-        // (1 + r)^t = Ratio  =>  r = Ratio^(1/t) - 1
         const wealth_ratio = projected_net_worth_pence / total_invested_pence;
         if (wealth_ratio > 0) {
             annual_return = (Math.pow(wealth_ratio, 1/years) - 1) * 100;
@@ -207,7 +193,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
 </script>
 
 <template>
-    <div class="space-y-6 pb-24 h-full flex flex-col">
+    <div class="space-y-6 pb-24 min-h-full flex flex-col">
         
         <div class="flex justify-between items-start flex-shrink-0">
             <div>
@@ -272,7 +258,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
             <Scorecards :metrics="metrics" :baselineMetrics="baselineMetrics" :isModelling="isModelling" />
         </div>
 
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col mb-10">
              
              <div class="flex justify-between items-start mb-4 flex-shrink-0">
                  <div class="flex items-center gap-4">
@@ -298,9 +284,9 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
                  </div>
              </div>
              
-             <div class="flex flex-1 gap-6 min-h-0">
-                 <div class="h-[450px] w-full relative min-w-0">
-                     <div v-if="store.loading" class="absolute inset-0 flex items-center justify-center text-slate-400">Updating Model...</div>
+             <div class="flex gap-6 min-h-[450px]">
+                 <div class="flex-1 min-w-0">
+                     <div v-if="store.loading" class="flex items-center justify-center text-slate-400 h-[450px]">Updating Model...</div>
                      <ProjectionChart v-else-if="store.simulationData && isSettingsLoaded" 
                         :data="store.simulationData" 
                         :visibleAccountIds="visibleAccountIds" 
@@ -308,10 +294,12 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
                         :freezeAxis="isAxisFrozen" />
                  </div>
                  
-                 <div class="w-64 flex-shrink-0 border-l border-slate-100 pl-4 overflow-y-auto custom-scrollbar">
-                     <ChartLegend v-if="isSettingsLoaded"
-                        :initialSelection="visibleAccountIds"
-                        @update:selection="ids => visibleAccountIds = ids" />
+                 <div class="w-64 flex-shrink-0 border-l border-slate-100 pl-4 relative">
+                     <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
+                        <ChartLegend v-if="isSettingsLoaded"
+                            :initialSelection="visibleAccountIds"
+                            @update:selection="ids => visibleAccountIds = ids" />
+                     </div>
                  </div>
              </div>
         </div>
