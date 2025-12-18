@@ -4,7 +4,8 @@ class AccountType(str, enum.Enum):
     CASH = "Cash"
     INVESTMENT = "Investment"
     PENSION = "Pension"
-    PROPERTY = "Property"
+    PROPERTY = "Property"          # Investment / Second Home (Subject to CGT)
+    MAIN_RESIDENCE = "Main Residence" # Your Home (Exempt from CGT)
     MORTGAGE = "Mortgage"
     LOAN = "Loan"
     RSU_GRANT = "RSU Grant"
