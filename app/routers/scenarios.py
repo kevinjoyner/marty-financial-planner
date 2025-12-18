@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from datetime import datetime, date
 from .. import models, schemas, database, engine, crud
 from ..database import get_db
+import os
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
@@ -36,11 +37,19 @@ def read_scenario(scenario_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.Scenario)
 def create_scenario(scenario: schemas.ScenarioCreate, db: Session = Depends(get_db)):
+    # Optional: Apply to manually created scenarios too? 
+    # For now, applying mainly to imports as requested, but good consistency to have here.
+    if os.getenv("ENVIRONMENT") == "development" and not scenario.name.startswith("dev_"):
+        scenario.name = f"dev_{scenario.name}"
     return crud.create_scenario(db, scenario)
 
 @router.post("/{scenario_id}/fork", response_model=schemas.Scenario)
 def fork_scenario(scenario_id: int, req: schemas.ScenarioForkRequest, db: Session = Depends(get_db)):
-    new_scen = crud.duplicate_scenario(db, scenario_id, new_name=req.name, overrides=req.overrides)
+    new_name = req.name
+    if os.getenv("ENVIRONMENT") == "development" and not new_name.startswith("dev_"):
+        new_name = f"dev_{new_name}"
+        
+    new_scen = crud.duplicate_scenario(db, scenario_id, new_name=new_name, overrides=req.overrides)
     if not new_scen: raise HTTPException(404, "Scenario not found")
     if req.description:
         new_scen.description = req.description
@@ -52,6 +61,11 @@ def fork_scenario(scenario_id: int, req: schemas.ScenarioForkRequest, db: Sessio
 def import_new_scenario(scenario_data: schemas.ScenarioImport, is_legacy: bool = Query(False), db: Session = Depends(get_db)):
     raw_data = scenario_data.model_dump()
     clean_data = _normalize_legacy_data(raw_data) if is_legacy else raw_data
+    
+    # DEV ENVIRONMENT TAGGING
+    if os.getenv("ENVIRONMENT") == "development":
+        if not clean_data["name"].startswith("dev_"):
+            clean_data["name"] = f"dev_{clean_data['name']}"
     
     # 1. Create the Shell Scenario
     db_scenario = models.Scenario(
@@ -95,6 +109,7 @@ def restore_history(scenario_id: int, history_id: int, db: Session = Depends(get
     if not history_item: raise HTTPException(404, "History item not found")
     
     snapshot = history_item.snapshot_data
+    # Note: We probably don't need to re-tag history restores as they are likely already tagged or internal
     new_scenario = crud.create_scenario(db, schemas.ScenarioCreate(name=f"Restored: {snapshot['name']}", start_date=snapshot['start_date']))
     crud.import_scenario_data(db, new_scenario.id, snapshot)
     

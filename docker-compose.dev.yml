@@ -6,6 +6,7 @@ services:
       target: base
     environment:
       - DATABASE_URL=sqlite:///./marty.db
+      - ENVIRONMENT=development
     volumes:
       - .:/app:cached
     ports:
