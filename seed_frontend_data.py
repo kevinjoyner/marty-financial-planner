@@ -2,9 +2,9 @@ import asyncio
 from app.database import SessionLocal
 from app import models, enums
 from datetime import date
+from sqlalchemy import text
 
 # --- CONFIGURATION ---
-# We set book_cost LOWER than balance to ensure the dashboard shows green growth numbers.
 # VALUES IN PENCE (x100)
 ISA_BALANCE = 45000 * 100
 ISA_COST = 40000 * 100  # 12.5% Growth
@@ -23,12 +23,37 @@ async def seed():
     print("🌱 Seeding Rich Demo Data (Values in Pence)...")
     db = SessionLocal()
     try:
-        # 1. CLEANUP: Delete existing demo if present
+        # 1. CLEANUP: Robustly delete existing demo
         existing = db.query(models.Scenario).filter(models.Scenario.name == DEMO_SCENARIO["name"]).first()
         if existing:
-            print("♻️  Found existing demo scenario. Deleting to ensure clean seed...")
+            print(f"♻️  Found existing demo scenario (ID: {existing.id}). Performing surgical cleanup...")
+            
+            # A. Break Self-Referential Account Links (Mortgages/RSUs)
+            # This prevents "Foreign Key" errors when deleting accounts that point to each other
+            db.execute(text(f"UPDATE accounts SET payment_from_account_id = NULL, rsu_target_account_id = NULL WHERE scenario_id = {existing.id}"))
+            
+            # B. Delete Dependents Explicitly (Order Matters)
+            db.query(models.AutomationRule).filter(models.AutomationRule.scenario_id == existing.id).delete()
+            db.query(models.TaxLimit).filter(models.TaxLimit.scenario_id == existing.id).delete()
+            db.query(models.FinancialEvent).filter(models.FinancialEvent.scenario_id == existing.id).delete()
+            db.query(models.Cost).filter(models.Cost.scenario_id == existing.id).delete()
+            db.query(models.Transfer).filter(models.Transfer.scenario_id == existing.id).delete()
+            
+            # Delete Income Sources (Need to find them via Owners)
+            owners = db.query(models.Owner).filter(models.Owner.scenario_id == existing.id).all()
+            for o in owners:
+                db.query(models.IncomeSource).filter(models.IncomeSource.owner_id == o.id).delete()
+            
+            db.commit() # Commit intermediate cleanups
+
+            # C. Delete Core Entities
+            db.query(models.Account).filter(models.Account.scenario_id == existing.id).delete()
+            db.query(models.Owner).filter(models.Owner.scenario_id == existing.id).delete()
+            
+            # D. Finally, Delete Scenario
             db.delete(existing)
             db.commit()
+            print("   ...Cleanup complete.")
 
         # 2. Create Scenario
         scenario = models.Scenario(**DEMO_SCENARIO)
@@ -40,7 +65,7 @@ async def seed():
         alice = models.Owner(scenario_id=scenario.id, name="Alice", birth_date=date(1990, 6, 15), retirement_age=60)
         bob = models.Owner(scenario_id=scenario.id, name="Bob", birth_date=date(1992, 3, 10), retirement_age=65)
         db.add_all([alice, bob])
-        db.commit() # Commit to get IDs
+        db.commit() 
         
         # 4. Create Accounts (Values x100)
         # Joint Account (Cash)
@@ -96,10 +121,10 @@ async def seed():
             scenario_id=scenario.id,
             name="Tech Corp RSU Grant (2023)",
             account_type=enums.AccountType.RSU_GRANT,
-            starting_balance=RSU_BALANCE, # Units in pence for simplicity in DB, but logic handles units
+            starting_balance=RSU_BALANCE, 
             book_cost=RSU_COST,
             currency=enums.Currency.USD,
-            unit_price=145.0, # Dollars
+            unit_price=145.0, 
             grant_date=date(2023, 1, 1),
             vesting_schedule=[
                 {"year": 1, "percent": 25},
@@ -109,7 +134,17 @@ async def seed():
             ]
         )
         
-        db.add_all([joint_acc, marcus, isa, mortgage, rsu])
+        # Main Residence
+        home = models.Account(
+            scenario_id=scenario.id,
+            name="Family Home (Shakespeare Rd)",
+            account_type=enums.AccountType.MAIN_RESIDENCE,
+            starting_balance=650000 * 100,
+            interest_rate=3.0, # Capital Appreciation
+            currency=enums.Currency.GBP
+        )
+        
+        db.add_all([joint_acc, marcus, isa, mortgage, rsu, home])
         db.commit()
 
         # 5. LINK OWNERS TO ACCOUNTS
@@ -121,6 +156,8 @@ async def seed():
         rsu.owners.append(alice)
         mortgage.owners.append(alice)
         mortgage.owners.append(bob)
+        home.owners.append(alice)
+        home.owners.append(bob)
 
         # Link Mortgage Payment & RSU Target
         mortgage.payment_from_account_id = joint_acc.id
@@ -172,7 +209,7 @@ async def seed():
         db.add_all([living, netflix])
         db.commit()
 
-        # 8. Financial Events (The jagged lines)
+        # 8. Financial Events
         kitchen = models.FinancialEvent(
             scenario_id=scenario.id, 
             name="New Kitchen", 
@@ -185,7 +222,7 @@ async def seed():
         
         db.add(kitchen)
         
-        # 9. Tax Limits (Missing in original)
+        # 9. Tax Limits
         isa_limit = models.TaxLimit(
             scenario_id=scenario.id,
             name="ISA Allowance",
@@ -206,15 +243,14 @@ async def seed():
         
         db.add_all([isa_limit, pension_limit])
 
-        # 10. Automation Rules (Missing in original)
-        # Sweep excess cash from Joint to Marcus if > £6000
+        # 10. Automation Rules
         sweep_rule = models.AutomationRule(
             scenario_id=scenario.id,
             name="Sweep to Savings",
             rule_type=enums.RuleType.SWEEP,
             source_account_id=joint_acc.id,
             target_account_id=marcus.id,
-            trigger_value=6000 * 100, # If > £6000
+            trigger_value=6000 * 100,
             priority=10,
             cadence=enums.Cadence.MONTHLY,
             start_date=date(2024, 1, 1)
