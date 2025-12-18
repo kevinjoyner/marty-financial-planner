@@ -28,8 +28,13 @@ class ProjectionContext:
 
 # ... (Standard helpers) ...
 def _calculate_disposal_impact(withdrawal_amount: int, current_balance: int, current_book_cost: int, account_type: enums.AccountType, tax_wrapper: enums.TaxWrapper) -> tuple[int, int]:
+    # EXEMPTIONS: 
+    # 1. Tax Wrappers (ISA/Pension)
+    # 2. Cash/Debt accounts
+    # 3. Main Residence (Private Residence Relief)
     if tax_wrapper and tax_wrapper != enums.TaxWrapper.NONE: return 0, 0
-    if account_type in [enums.AccountType.CASH, enums.AccountType.MORTGAGE, enums.AccountType.LOAN]: return 0, 0
+    if account_type in [enums.AccountType.CASH, enums.AccountType.MORTGAGE, enums.AccountType.LOAN, enums.AccountType.MAIN_RESIDENCE]: return 0, 0
+    
     if current_balance <= 0 or withdrawal_amount <= 0: return 0, 0
     fraction = withdrawal_amount / current_balance
     if fraction > 1.0: fraction = 1.0
@@ -106,9 +111,6 @@ def _get_contribution_headroom(context: ProjectionContext, account_id: int, tax_
         headroom = max(0, limit.amount - limit_usage)
         if headroom < min_headroom: min_headroom = headroom
     return min_headroom
-
-# ... (Processing functions: Income, Cost, Transfer, Event, RSU, Rule, Mortgage, Interest) ...
-# ... (Standard logic maintained) ...
 
 def _process_income(scenario: models.Scenario, context: ProjectionContext):
     seen_ids = set(); all_income_sources = []
@@ -464,13 +466,23 @@ def _process_interest(scenario: models.Scenario, context: ProjectionContext):
             if safe_interest_rate != 0:
                 monthly_rate = safe_interest_rate / 100 / 12; interest_gross = context.account_balances[acc.id] * monthly_rate; interest_gross_int = round(interest_gross)
                 tax_deducted = 0
-                if interest_gross_int > 0 and (not acc.tax_wrapper or acc.tax_wrapper == enums.TaxWrapper.NONE):
+                
+                # TAX LOGIC: 
+                # 1. Wrappers (ISA/Pension) -> No Monthly Tax
+                # 2. Property / Main Residence -> No Monthly Tax (It's Capital Growth)
+                # 3. Cash/Investment -> Monthly Tax applies
+                
+                is_taxable = (not acc.tax_wrapper or acc.tax_wrapper == enums.TaxWrapper.NONE)
+                is_real_property = (acc.account_type in [enums.AccountType.PROPERTY, enums.AccountType.MAIN_RESIDENCE])
+
+                if interest_gross_int > 0 and is_taxable and not is_real_property:
                     owner_id = acc.owners[0].id if acc.owners else 0
                     earnings = context.ytd_earnings.get(owner_id, {}).get('taxable', 0)
                     prior_interest = context.ytd_interest.get(owner_id, 0)
                     tax_deducted = TaxService.calculate_savings_tax(interest_gross_int, earnings + prior_interest, prior_interest)
                     if owner_id not in context.ytd_interest: context.ytd_interest[owner_id] = 0
                     context.ytd_interest[owner_id] += interest_gross_int
+                
                 interest_net_int = interest_gross_int - tax_deducted
                 context.account_balances[acc.id] += interest_net_int; context.flows[acc.id]["interest"] += interest_gross_int / 100.0; context.flows[acc.id]["tax"] += tax_deducted / 100.0
 
@@ -505,7 +517,15 @@ def _detect_milestones(context: ProjectionContext):
     for acc in context.all_accounts:
         curr_bal = context.account_balances[acc.id]
         prev_bal = context.prev_balances.get(acc.id, acc.starting_balance)
+        
+        # Only count CASH and INVESTMENT as "Liquid"
+        # Explicitly Exclude PENSION, PROPERTY, MAIN_RESIDENCE, RSU_GRANT
         if acc.account_type in [enums.AccountType.CASH, enums.AccountType.INVESTMENT]:
+            
+            # FIX: Pension wrappers are NOT liquid, even if Type is Investment/Cash
+            if acc.tax_wrapper == enums.TaxWrapper.PENSION:
+                continue
+
             if curr_bal > 0: curr_liquid += curr_bal
             if prev_bal > 0: prev_liquid += prev_bal
         elif acc.account_type in [enums.AccountType.MORTGAGE, enums.AccountType.LOAN]:
@@ -513,9 +533,9 @@ def _detect_milestones(context: ProjectionContext):
             if prev_bal < 0: prev_debt += abs(prev_bal)
     
     # Milestone: Liquid Assets exceed Total Debt for the first time
-    # logic updated: >= transition from state < to state >=
-    if prev_liquid < prev_debt and curr_liquid >= curr_debt:
-         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid Assets > Liabilities", type="milestone"))
+    # Check prev_debt > 0 to ensure we actually *had* debt to clear
+    if prev_liquid < prev_debt and curr_liquid >= curr_debt and prev_debt > 0:
+         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
 
 def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schemas.SimulationOverride]):
     for override in overrides:

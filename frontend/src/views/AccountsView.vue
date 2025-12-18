@@ -15,9 +15,13 @@ onMounted(() => { if (!store.scenario) store.init() })
 const accountsByType = computed(() => {
     if (!store.scenario) return {}
     const accs = store.scenario.accounts
+    
+    // Logic: Explicit types are Liabilities. Negative balances are also Liabilities.
+    const isLiability = (a) => a.account_type === 'Mortgage' || a.account_type === 'Loan' || a.starting_balance < 0;
+    
     return {
-        assets: accs.filter(a => a.starting_balance >= 0 && a.account_type !== 'RSU Grant'),
-        liabilities: accs.filter(a => a.starting_balance < 0),
+        assets: accs.filter(a => !isLiability(a) && a.account_type !== 'RSU Grant'),
+        liabilities: accs.filter(a => isLiability(a)),
         rsu: accs.filter(a => a.account_type === 'RSU Grant')
     }
 })
@@ -77,11 +81,12 @@ const remove = async () => {
                 <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50 border-b border-slate-200 text-slate-500">
-                            <tr><th class="px-6 py-3 font-medium">Account Name</th><th class="px-6 py-3 font-medium text-right">Balance</th><th class="px-6 py-3 font-medium text-right">Rate</th><th class="px-6 py-3 font-medium text-center w-16"></th></tr>
+                            <tr><th class="px-6 py-3 font-medium">Account Name</th><th class="px-6 py-3 font-medium">Type</th><th class="px-6 py-3 font-medium text-right">Balance</th><th class="px-6 py-3 font-medium text-right">Rate</th><th class="px-6 py-3 font-medium text-center w-16"></th></tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="acc in accountsByType.liabilities" :key="acc.id" class="group hover:bg-slate-50/50 transition-colors">
                                 <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center"><Home class="w-4 h-4" /></div><div class="font-medium text-slate-900">{{ acc.name }}</div></div></td>
+                                <td class="px-6 py-4 text-slate-500">{{ acc.account_type === 'Mortgage' ? 'Mortgage / Loan' : acc.account_type }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-700">{{ formatPounds(acc.starting_balance) }}</td>
                                 <td class="px-6 py-4 text-right font-mono text-slate-600">{{ acc.interest_rate }}%</td>
                                 <td class="px-6 py-4 text-center"><button @click="openEdit(acc)" class="p-1.5 text-slate-300 hover:text-primary hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button></td>
@@ -112,8 +117,23 @@ const remove = async () => {
 
         <Drawer :isOpen="!!editingAccount" :title="editingAccount?.name || 'New Account'" @close="editingAccount = null" @save="save">
             <div v-if="editingAccount" class="space-y-6">
-                <div v-if="form.account_type === 'Mortgage'" class="space-y-6">
-                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Account Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                <div><label class="block text-sm font-medium text-slate-700 mb-1">Account Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                        <select v-model="form.account_type" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                            <option value="Cash">Cash</option>
+                            <option value="Investment">Investment</option>
+                            <option value="Main Residence">Main Residence</option>
+                            <option value="Property">Property</option>
+                            <option value="Mortgage">Mortgage / Loan</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Tax Wrapper</label><select v-model="form.tax_wrapper" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option value="None">None</option><option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option></select></div>
+                </div>
+
+                <div v-if="form.account_type === 'Mortgage'" class="space-y-6 pt-2">
                     <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Loan Details</h4>
                         <div class="grid grid-cols-2 gap-4">
                             <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Interest (%)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-rate`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Rate`, value: editingAccount.interest_rate, format: 'percent' }" /></div><input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
@@ -134,12 +154,7 @@ const remove = async () => {
                     <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Pay From Account</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-payfrom`, realId: editingAccount.id, type: 'account', field: 'payment_from_account_id', label: `${editingAccount.name} Pay From`, value: editingAccount.payment_from_account_id, inputType: 'select', options: accountOptions }" /></div><select v-model="form.payment_from_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option :value="null">-- None --</option><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select></div>
                 </div>
 
-                <div v-else class="space-y-4">
-                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Account Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><label class="block text-sm font-medium text-slate-700 mb-1">Type</label><select v-model="form.account_type" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option value="Cash">Cash</option><option value="Investment">Investment</option><option value="Property">Property</option><option value="Mortgage">Mortgage / Loan</option></select></div>
-                        <div><label class="block text-sm font-medium text-slate-700 mb-1">Tax Wrapper</label><select v-model="form.tax_wrapper" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option value="None">None</option><option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option></select></div>
-                    </div>
+                <div v-else class="space-y-4 pt-2">
                     <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Balance</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-balance`, realId: editingAccount.id, type: 'account', field: 'starting_balance', label: `${editingAccount.name} Balance`, value: editingAccount.starting_balance / 100, format: 'currency' }" /></div><div class="relative"><span class="absolute left-3 top-2 text-slate-400">£</span><input type="number" v-model="form.starting_balance" class="w-full border border-slate-300 rounded-md pl-7 pr-3 py-2 text-sm"></div></div>
                     <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Growth / Interest Rate (%)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-rate`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Rate`, value: editingAccount.interest_rate, format: 'percent' }" /></div><input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                 </div>
