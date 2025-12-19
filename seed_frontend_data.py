@@ -29,22 +29,27 @@ async def seed():
             print(f"♻️  Found existing demo scenario (ID: {existing.id}). Performing surgical cleanup...")
             
             # A. Break Self-Referential Account Links (Mortgages/RSUs)
-            # This prevents "Foreign Key" errors when deleting accounts that point to each other
-            db.execute(text(f"UPDATE accounts SET payment_from_account_id = NULL, rsu_target_account_id = NULL WHERE scenario_id = {existing.id}"))
+            try:
+                db.execute(text(f"UPDATE accounts SET payment_from_account_id = NULL, rsu_target_account_id = NULL WHERE scenario_id = {existing.id}"))
+                db.commit()
+            except Exception as e:
+                print(f"   Warning: Could not unlink accounts: {e}")
+                db.rollback()
             
-            # B. Delete Dependents Explicitly (Order Matters)
+            # B. Delete Dependents Explicitly
+            # Note: We query owners here to find incomes, which loads them into the Session Identity Map.
+            # This is why we must EXPUNGE later.
+            owners = db.query(models.Owner).filter(models.Owner.scenario_id == existing.id).all()
+            for o in owners:
+                db.query(models.IncomeSource).filter(models.IncomeSource.owner_id == o.id).delete()
+            
             db.query(models.AutomationRule).filter(models.AutomationRule.scenario_id == existing.id).delete()
             db.query(models.TaxLimit).filter(models.TaxLimit.scenario_id == existing.id).delete()
             db.query(models.FinancialEvent).filter(models.FinancialEvent.scenario_id == existing.id).delete()
             db.query(models.Cost).filter(models.Cost.scenario_id == existing.id).delete()
             db.query(models.Transfer).filter(models.Transfer.scenario_id == existing.id).delete()
             
-            # Delete Income Sources (Need to find them via Owners)
-            owners = db.query(models.Owner).filter(models.Owner.scenario_id == existing.id).all()
-            for o in owners:
-                db.query(models.IncomeSource).filter(models.IncomeSource.owner_id == o.id).delete()
-            
-            db.commit() # Commit intermediate cleanups
+            db.commit() 
 
             # C. Delete Core Entities
             db.query(models.Account).filter(models.Account.scenario_id == existing.id).delete()
@@ -54,6 +59,11 @@ async def seed():
             db.delete(existing)
             db.commit()
             print("   ...Cleanup complete.")
+            
+            # CRITICAL FIX: Clear the session memory (Identity Map).
+            # This makes the session forget the 'Old' Alice/Bob objects we just deleted,
+            # preventing conflicts when we create 'New' Alice/Bob with the same IDs.
+            db.expunge_all()
 
         # 2. Create Scenario
         scenario = models.Scenario(**DEMO_SCENARIO)
