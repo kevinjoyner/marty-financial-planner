@@ -133,8 +133,18 @@ const resetHiddenAlerts = () => {
 }
 
 // --- Metrics Calculation ---
+const safeDefaults = { 
+    current_net_worth: 0, 
+    projected_net_worth: 0, 
+    net_contributions: 0, 
+    investment_growth: 0, 
+    annual_return: 0 
+};
+
 const calculateMetrics = (data) => {
-    if (!data || !data.data_points || data.data_points.length === 0) return null;
+    // FIX: Return safe defaults if no data points (New Scenario)
+    if (!data || !data.data_points || data.data_points.length === 0) return safeDefaults;
+    
     const lastPoint = data.data_points[data.data_points.length - 1];
     const firstPoint = data.data_points[0];
     

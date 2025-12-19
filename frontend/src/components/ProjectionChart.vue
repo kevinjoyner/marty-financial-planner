@@ -112,11 +112,10 @@ const plugins = [ganttLabelPlugin];
 
 // --- 2. Data Processing ---
 const chartData = computed(() => {
-  // CRITICAL FIX: Ensure we have data points before processing
+  // CRITICAL FIX: Return empty structure if data is missing
   if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
       return { labels: [], datasets: [] }
   }
-  
   const simPoints = props.data.data_points; 
   const basePoints = store.baselineData ? store.baselineData.data_points : null;
   const labels = simPoints.map(p => p.date); 
@@ -152,14 +151,12 @@ const chartData = computed(() => {
 })
 
 const preparedData = computed(() => {
-    // CRITICAL FIX: Handle empty data points array
+    // CRITICAL FIX: Return default state if data is missing
     if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
         return { annotations: [], laneCount: 0 };
     }
-
     const availableDates = props.data.data_points.map(p => p.date);
     const annotations = [];
-    
     const processList = (list, isBaseline) => {
         if (!list) return;
         list.forEach(a => {
@@ -171,32 +168,26 @@ const preparedData = computed(() => {
             if (matchedLabel) annotations.push({ ...a, date: matchedLabel, isBaseline });
         });
     };
-
     processList(props.data.annotations, false);
-
     if (store.activeOverrideCount > 0 && store.baselineData && store.baselineData.annotations) {
         processList(store.baselineData.annotations, true);
     }
-    
     const sorted = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
     const lanes = [];
     const startDate = new Date(availableDates[0]).getTime();
     const endDate = new Date(availableDates[availableDates.length - 1]).getTime();
     const totalDuration = endDate - startDate;
     const LABEL_BUFFER_MS = totalDuration * 0.12; 
-
     sorted.forEach(ann => {
         const annTime = new Date(ann.date).getTime();
         let laneIndex = 0;
         while (true) {
              if (!lanes[laneIndex] || annTime > (lanes[laneIndex] + LABEL_BUFFER_MS)) {
-                 lanes[laneIndex] = annTime;
-                 break;
+                 lanes[laneIndex] = annTime; break;
              }
              laneIndex++;
         }
     });
-
     return { annotations: sorted, laneCount: Math.max(0, lanes.length) };
 });
 
@@ -208,35 +199,16 @@ const containerHeight = computed(() => {
 const chartOptions = computed(() => {
     const laneCount = preparedData.value.laneCount || 0;
     const bottomPadding = 50 + (laneCount * 28) + 10; 
-
     return { 
         responsive: true, 
         maintainAspectRatio: false, 
         interaction: { mode: 'index', intersect: false }, 
         clip: false, 
-        layout: {
-            padding: {
-                bottom: bottomPadding,
-                top: 20
-            }
-        },
-        plugins: { 
-            legend: { display: false }, 
-            annotation: { annotations: {} }, 
-            ganttData: preparedData.value.annotations, 
-            tooltip: { itemSort: (a, b) => b.raw - a.raw } 
-        }, 
+        layout: { padding: { bottom: bottomPadding, top: 20 } },
+        plugins: { legend: { display: false }, annotation: { annotations: {} }, ganttData: preparedData.value.annotations, tooltip: { itemSort: (a, b) => b.raw - a.raw } }, 
         scales: { 
-            y: { 
-                min: yMin.value, 
-                max: yMax.value, 
-                grid: { color: '#f1f5f9' }, 
-                ticks: { callback: (val) => '£' + (val/1000).toFixed(0) + 'k' } 
-            }, 
-            x: { 
-                grid: { display: false },
-                ticks: { maxTicksLimit: 8, maxRotation: 0 } 
-            } 
+            y: { min: yMin.value, max: yMax.value, grid: { color: '#f1f5f9' }, ticks: { callback: (val) => '£' + (val/1000).toFixed(0) + 'k' } }, 
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } } 
         } 
     }
 })
