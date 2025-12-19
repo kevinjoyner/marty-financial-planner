@@ -20,7 +20,11 @@ const loadList = async () => {
 
 onMounted(() => { loadList() })
 
-const openScenario = (id) => { store.loadActiveScenario(id); router.push('/') }
+// FIX: Added 'async' and 'await' to ensure data is loaded before navigation
+const openScenario = async (id) => { 
+    await store.loadActiveScenario(id); 
+    router.push('/') 
+}
 
 const duplicate = async (id) => { await api.duplicateScenario(id); await loadList() }
 

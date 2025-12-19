@@ -57,27 +57,58 @@ const aggregationMode = ref('account')
 const isSettingsLoaded = ref(false)
 const hiddenAlertSignatures = ref(new Set()) 
 
+const selectAllAccounts = () => {
+    if (store.scenario && store.scenario.accounts) {
+        visibleAccountIds.value = store.scenario.accounts.map(a => a.id);
+    } else {
+        visibleAccountIds.value = [];
+    }
+}
+
+// Helper to prevent recursive update loops with arrays
+const updateVisibleAccounts = (newIds) => {
+    if (!newIds) return;
+    // Check lengths first
+    if (newIds.length !== visibleAccountIds.value.length) {
+        visibleAccountIds.value = newIds;
+        return;
+    }
+    // Check content (assuming unsorted is fine if order comes from legend, but sort to be safe)
+    const currentSorted = [...visibleAccountIds.value].sort();
+    const newSorted = [...newIds].sort();
+    const isSame = currentSorted.every((val, index) => val === newSorted[index]);
+    
+    if (!isSame) {
+        visibleAccountIds.value = newIds;
+    }
+}
+
 const loadSettings = () => {
     if (!store.activeScenarioId) return;
     const key = `marty_dash_${store.activeScenarioId}`;
     const saved = localStorage.getItem(key);
+    
+    // Get valid IDs from current scenario to sanitize stale settings
+    const validIds = new Set(store.scenario?.accounts?.map(a => a.id) || []);
+
     if (saved) {
         try {
             const p = JSON.parse(saved);
             if (p.visibleAccountIds && Array.isArray(p.visibleAccountIds) && p.visibleAccountIds.length > 0) {
-                visibleAccountIds.value = p.visibleAccountIds;
+                // Filter only valid IDs
+                const sanitized = p.visibleAccountIds.filter(id => validIds.has(id));
+                if (sanitized.length > 0) {
+                     visibleAccountIds.value = sanitized;
+                } else {
+                     selectAllAccounts();
+                }
             } else { selectAllAccounts(); }
+            
             if (p.aggregationMode) aggregationMode.value = p.aggregationMode;
             if (p.hiddenAlerts) hiddenAlertSignatures.value = new Set(p.hiddenAlerts);
         } catch(e) { selectAllAccounts(); }
     } else { selectAllAccounts(); }
     isSettingsLoaded.value = true;
-}
-
-const selectAllAccounts = () => {
-    if (store.scenario && store.scenario.accounts) {
-        visibleAccountIds.value = store.scenario.accounts.map(a => a.id);
-    }
 }
 
 const saveSettings = () => {
@@ -91,10 +122,28 @@ const saveSettings = () => {
 }
 
 onMounted(async () => {
-    await store.init();
-    loadSettings();
+    // Check if store is already initialized to avoid double-loading
+    if (!store.activeScenarioId || !store.scenario) {
+        await store.init();
+    }
+    
+    // Only load settings if we haven't already via the watcher
+    if (!isSettingsLoaded.value) {
+        loadSettings();
+    }
+    
     if(store.scenario) syncInputsFromStore();
 })
+
+// FIX: Watch scenario for late loading or updates to ensure accounts are selected
+watch(() => store.scenario, (newVal) => {
+    // If we have accounts but none are visible (likely because settings loaded before data), reload settings
+    if (newVal && newVal.accounts && newVal.accounts.length > 0) {
+        if (visibleAccountIds.value.length === 0) {
+            loadSettings();
+        }
+    }
+}, { deep: true })
 
 watch(() => store.activeScenarioId, async (newId) => {
     if(newId) {
@@ -308,7 +357,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
                      <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
                         <ChartLegend v-if="isSettingsLoaded"
                             :initialSelection="visibleAccountIds"
-                            @update:selection="ids => visibleAccountIds = ids" />
+                            @update:selection="updateVisibleAccounts" />
                      </div>
                  </div>
              </div>
