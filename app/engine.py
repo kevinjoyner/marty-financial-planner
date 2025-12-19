@@ -226,12 +226,20 @@ def _process_transfers(scenario: models.Scenario, context: ProjectionContext):
                 context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=transfer.to_account_id, message=f"Tax Limit: Transfer exceeds allowance.", source_type="transfer", source_id=transfer.id))
             cgt_tax = 0
             cost_portion, gain = _calculate_disposal_impact(value, context.account_balances[from_account.id], context.account_book_costs[from_account.id], from_account.account_type, from_account.tax_wrapper)
-            if gain > 0:
-                owner_id = from_account.owners[0].id if from_account.owners else 0
-                if owner_id not in context.ytd_gains: context.ytd_gains[owner_id] = 0
-                earnings = context.ytd_earnings.get(owner_id, {}).get('taxable', 0)
-                cgt_tax = TaxService.calculate_capital_gains_tax(gain, context.ytd_gains[owner_id], earnings)
-                context.ytd_gains[owner_id] += gain
+            
+            # SPLIT GAIN LOGIC
+            if gain > 0 and from_account.owners:
+                num_owners = len(from_account.owners)
+                gain_per_owner = int(gain / num_owners)
+                total_cgt = 0
+                for owner in from_account.owners:
+                    if owner.id not in context.ytd_gains: context.ytd_gains[owner.id] = 0
+                    earnings = context.ytd_earnings.get(owner.id, {}).get('taxable', 0)
+                    tax = TaxService.calculate_capital_gains_tax(gain_per_owner, context.ytd_gains[owner.id], earnings)
+                    context.ytd_gains[owner.id] += gain_per_owner
+                    total_cgt += tax
+                cgt_tax = total_cgt
+
             context.account_balances[transfer.from_account_id] -= value
             context.account_book_costs[transfer.from_account_id] -= cost_portion 
             context.flows[transfer.from_account_id]["transfers_out"] += value / 100.0
@@ -269,12 +277,20 @@ def _process_events(scenario: models.Scenario, context: ProjectionContext):
                 cgt_tax = 0; cost_portion = event.value 
                 if from_acc:
                     cost_portion, gain = _calculate_disposal_impact(event.value, context.account_balances[event.from_account_id], context.account_book_costs[event.from_account_id], from_acc.account_type, from_acc.tax_wrapper)
-                    if gain > 0:
-                        owner_id = from_acc.owners[0].id if from_acc.owners else 0
-                        if owner_id not in context.ytd_gains: context.ytd_gains[owner_id] = 0
-                        earnings = context.ytd_earnings.get(owner_id, {}).get('taxable', 0)
-                        cgt_tax = TaxService.calculate_capital_gains_tax(gain, context.ytd_gains[owner_id], earnings)
-                        context.ytd_gains[owner_id] += gain
+                    
+                    # SPLIT GAIN LOGIC
+                    if gain > 0 and from_acc.owners:
+                        num_owners = len(from_acc.owners)
+                        gain_per_owner = int(gain / num_owners)
+                        total_cgt = 0
+                        for owner in from_acc.owners:
+                            if owner.id not in context.ytd_gains: context.ytd_gains[owner.id] = 0
+                            earnings = context.ytd_earnings.get(owner.id, {}).get('taxable', 0)
+                            tax = TaxService.calculate_capital_gains_tax(gain_per_owner, context.ytd_gains[owner.id], earnings)
+                            context.ytd_gains[owner.id] += gain_per_owner
+                            total_cgt += tax
+                        cgt_tax = total_cgt
+
                 context.account_balances[event.from_account_id] -= event.value
                 context.account_book_costs[event.from_account_id] -= cost_portion 
                 context.flows[event.from_account_id]["transfers_out"] += event.value / 100.0
@@ -400,12 +416,20 @@ def _process_rules(scenario: models.Scenario, context: ProjectionContext):
             cgt_tax = 0
             if source_acc:
                 cost_portion, gain = _calculate_disposal_impact(transfer_amount, source_bal, context.account_book_costs[source_id], source_acc.account_type, source_acc.tax_wrapper)
-                if gain > 0:
-                    owner_id = source_acc.owners[0].id if source_acc.owners else 0
-                    if owner_id not in context.ytd_gains: context.ytd_gains[owner_id] = 0
-                    earnings = context.ytd_earnings.get(owner_id, {}).get('taxable', 0)
-                    cgt_tax = TaxService.calculate_capital_gains_tax(gain, context.ytd_gains[owner_id], earnings)
-                    context.ytd_gains[owner_id] += gain
+                
+                # SPLIT GAIN LOGIC
+                if gain > 0 and source_acc.owners:
+                    num_owners = len(source_acc.owners)
+                    gain_per_owner = int(gain / num_owners)
+                    total_cgt = 0
+                    for owner in source_acc.owners:
+                        if owner.id not in context.ytd_gains: context.ytd_gains[owner.id] = 0
+                        earnings = context.ytd_earnings.get(owner.id, {}).get('taxable', 0)
+                        cgt_tax = TaxService.calculate_capital_gains_tax(gain_per_owner, context.ytd_gains[owner.id], earnings)
+                        context.ytd_gains[owner.id] += gain_per_owner
+                        total_cgt += cgt_tax
+                    cgt_tax = total_cgt
+
                 context.account_book_costs[source_id] -= cost_portion
             context.account_balances[source_id] -= transfer_amount
             context.flows[source_id]["transfers_out"] += transfer_amount / 100.0
@@ -467,21 +491,29 @@ def _process_interest(scenario: models.Scenario, context: ProjectionContext):
                 monthly_rate = safe_interest_rate / 100 / 12; interest_gross = context.account_balances[acc.id] * monthly_rate; interest_gross_int = round(interest_gross)
                 tax_deducted = 0
                 
-                # TAX LOGIC: 
-                # 1. Wrappers (ISA/Pension) -> No Monthly Tax
-                # 2. Property / Main Residence -> No Monthly Tax (It's Capital Growth)
-                # 3. Cash/Investment -> Monthly Tax applies
-                
                 is_taxable = (not acc.tax_wrapper or acc.tax_wrapper == enums.TaxWrapper.NONE)
                 is_real_property = (acc.account_type in [enums.AccountType.PROPERTY, enums.AccountType.MAIN_RESIDENCE])
 
                 if interest_gross_int > 0 and is_taxable and not is_real_property:
-                    owner_id = acc.owners[0].id if acc.owners else 0
-                    earnings = context.ytd_earnings.get(owner_id, {}).get('taxable', 0)
-                    prior_interest = context.ytd_interest.get(owner_id, 0)
-                    tax_deducted = TaxService.calculate_savings_tax(interest_gross_int, earnings + prior_interest, prior_interest)
-                    if owner_id not in context.ytd_interest: context.ytd_interest[owner_id] = 0
-                    context.ytd_interest[owner_id] += interest_gross_int
+                    # SPLIT INTEREST LOGIC
+                    owners = acc.owners if acc.owners else []
+                    if owners:
+                        num_owners = len(owners)
+                        interest_per_owner = int(interest_gross_int / num_owners)
+                        total_tax = 0
+                        for owner in owners:
+                            earnings = context.ytd_earnings.get(owner.id, {}).get('taxable', 0)
+                            prior_interest = context.ytd_interest.get(owner.id, 0)
+                            # Each owner gets their own PSA calculation
+                            tax = TaxService.calculate_savings_tax(interest_per_owner, earnings + prior_interest, prior_interest)
+                            
+                            if owner.id not in context.ytd_interest: context.ytd_interest[owner.id] = 0
+                            context.ytd_interest[owner.id] += interest_per_owner
+                            total_tax += tax
+                        tax_deducted = total_tax
+                    else:
+                        # Fallback for ownerless accounts (shouldn't happen, but safe default)
+                        tax_deducted = 0
                 
                 interest_net_int = interest_gross_int - tax_deducted
                 context.account_balances[acc.id] += interest_net_int; context.flows[acc.id]["interest"] += interest_gross_int / 100.0; context.flows[acc.id]["tax"] += tax_deducted / 100.0

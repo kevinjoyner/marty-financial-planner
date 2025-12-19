@@ -1,22 +1,37 @@
 <script setup>
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSimulationStore } from '../stores/simulation'
-import { Landmark, TrendingUp, PiggyBank, Home, Pencil, Plus } from 'lucide-vue-next'
+import { Landmark, TrendingUp, PiggyBank, Home, Pencil, Plus, Users, UserPlus, Lock } from 'lucide-vue-next'
 import PinToggle from '../components/PinToggle.vue'
 import Drawer from '../components/Drawer.vue'
 import { formatCurrency } from '../utils/format'
 
 const store = useSimulationStore()
+const router = useRouter()
 const editingAccount = ref(null)
 const form = ref({}) 
 
 onMounted(() => { if (!store.scenario) store.init() })
 
+const owners = computed(() => store.scenario?.owners || [])
+const hasOwners = computed(() => owners.value.length > 0)
+
+// LOGIC: Joint Accounts cannot have Tax Wrappers
+const isJointAccount = computed(() => form.value.owner_ids && form.value.owner_ids.length > 1)
+
+watch(() => form.value.owner_ids, (newIds) => {
+    if (newIds && newIds.length > 1) {
+        if (form.value.tax_wrapper !== 'None') {
+            form.value.tax_wrapper = 'None';
+        }
+    }
+})
+
 const accountsByType = computed(() => {
     if (!store.scenario) return {}
     const accs = store.scenario.accounts
     
-    // Logic: Explicit types are Liabilities. Negative balances are also Liabilities.
     const isLiability = (a) => a.account_type === 'Mortgage' || a.account_type === 'Loan' || a.starting_balance < 0;
     
     return {
@@ -26,14 +41,18 @@ const accountsByType = computed(() => {
     }
 })
 
-// Helper for Dropdowns
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
-
 const formatPounds = (val) => formatCurrency(val)
 
 const openEdit = (acc) => {
     editingAccount.value = acc
-    form.value = { ...acc, starting_balance: acc.starting_balance / 100, original_loan_amount: acc.original_loan_amount ? acc.original_loan_amount / 100 : null }
+    const currentOwnerIds = acc.owners ? acc.owners.map(o => o.id) : []
+    form.value = { 
+        ...acc, 
+        starting_balance: acc.starting_balance / 100, 
+        original_loan_amount: acc.original_loan_amount ? acc.original_loan_amount / 100 : null,
+        owner_ids: currentOwnerIds 
+    }
 }
 
 const openCreate = () => {
@@ -44,7 +63,11 @@ const openCreate = () => {
         tax_wrapper: 'None', 
         starting_balance: 0, 
         interest_rate: 0, 
-        currency: 'GBP' 
+        currency: 'GBP',
+        owner_ids: []
+    }
+    if (owners.value.length === 1) {
+        newAcc.owner_ids = [owners.value[0].id]
     }
     editingAccount.value = newAcc
     form.value = { ...newAcc }
@@ -60,6 +83,8 @@ const remove = async () => {
     const success = await store.deleteEntity('account', editingAccount.value.id);
     if (success) editingAccount.value = null;
 }
+
+const goToPeople = () => router.push('/tax')
 </script>
 
 <template>
@@ -69,12 +94,25 @@ const remove = async () => {
                 <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
                 <p class="text-sm text-slate-500 mt-1">Assets, liabilities, and equity.</p>
             </div>
-            <button @click="openCreate" class="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm">
+            
+            <button v-if="hasOwners" @click="openCreate" class="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm">
                 <Plus class="w-4 h-4" /> Add Account
             </button>
         </header>
         
         <div v-if="!store.scenario" class="text-slate-400 italic">Loading...</div>
+        
+        <div v-else-if="!hasOwners" class="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center">
+            <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                <Users class="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">Who does this plan belong to?</h3>
+            <p class="text-slate-500 max-w-md mb-6">Before you can add accounts or income, you need to define the people in this scenario.</p>
+            <button @click="goToPeople" class="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-md font-bold shadow-md hover:bg-primary/90 transition-all">
+                <UserPlus class="w-5 h-5" /> Add a Person
+            </button>
+        </div>
+
         <div v-else class="space-y-8">
             <div v-if="accountsByType.liabilities && accountsByType.liabilities.length > 0">
                 <h3 class="text-sm font-bold text-red-600 uppercase tracking-wider mb-3 px-1">Liabilities</h3>
@@ -119,6 +157,20 @@ const remove = async () => {
             <div v-if="editingAccount" class="space-y-6">
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Account Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                 
+                <div class="bg-slate-50 p-3 rounded-md border border-slate-200">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Assigned To (Ownership)</label>
+                    <div class="space-y-2">
+                        <label v-for="owner in owners" :key="owner.id" class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" :value="owner.id" v-model="form.owner_ids" class="rounded border-slate-300 text-primary focus:ring-primary">
+                            <span class="text-sm text-slate-700">{{ owner.name }}</span>
+                        </label>
+                    </div>
+                    <div v-if="isJointAccount" class="mt-2 text-amber-600 text-xs flex items-center gap-1.5">
+                        <Users class="w-3.5 h-3.5" />
+                        <span>Joint Account: Tax Wrappers are disabled.</span>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
@@ -130,7 +182,16 @@ const remove = async () => {
                             <option value="Mortgage">Mortgage / Loan</option>
                         </select>
                     </div>
-                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Tax Wrapper</label><select v-model="form.tax_wrapper" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option value="None">None</option><option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option></select></div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Tax Wrapper</label>
+                        <div class="relative">
+                            <select v-model="form.tax_wrapper" :disabled="isJointAccount" :class="['w-full border rounded-md px-3 py-2 text-sm', isJointAccount ? 'bg-slate-100 text-slate-400 border-slate-200' : 'border-slate-300 bg-white']">
+                                <option value="None">None</option>
+                                <option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option>
+                            </select>
+                            <Lock v-if="isJointAccount" class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3" />
+                        </div>
+                    </div>
                 </div>
 
                 <div v-if="form.account_type === 'Mortgage'" class="space-y-6 pt-2">
