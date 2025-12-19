@@ -20,3 +20,5 @@ frontend/npm-debug.log
 # Dev workflow
 apply_changes.sh
 frontend/prototype_*.html
+.devcontainer/*
+!.devcontainer/devcontainer.json
