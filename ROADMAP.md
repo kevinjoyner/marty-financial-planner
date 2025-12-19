@@ -55,25 +55,37 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 - [x] **Smart Layout:** Custom Chart.js plugin for non-overlapping, Gantt-style label placement below the axis.
 - [x] **Comparison:** Comparative milestones (Ghost Labels) for Baseline vs Simulation.
 
+### Phase 12: Simulation Control
+- [x] **1.1 Save Simulation:** "Fork" a set of temporary overrides into a brand new permanent Scenario.
+
 ---
 
 ## Upcoming Phases (Prioritized)
 
-### Phase 12: Advanced Simulation
-*Closing the loop between "What If" and "Reality".*
-- [ ] **1.1 Save Simulation:** "Fork" a set of temporary overrides into a brand new permanent Scenario.
+### 1. Phase 13: Technical Debt & Refactoring
+*Preparing the engine for scale and complexity.*
+- [ ] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g., `IncomeProcessor`, `MortgageProcessor`, `TaxProcessor`) to allow for unit testing and safe extension.
+- [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer to prevent floating-point/integer errors.
 
-### Phase 13: Technical Debt & Refactoring
-*Preparing the engine for scale.*
-- [ ] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g. `IncomeProcessor`, `MortgageProcessor`).
-- [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer.
-
-### Phase 14: Deep Domain Logic
-*Refining the financial engine fidelity.*
+### 2. Phase 14: Deep Domain Logic (Decumulation)
+*Refining the financial engine fidelity and lifecycle planning.*
 - [ ] **2.1 Owner Specifics:** DOB-driven logic for Retirement Age and Pension Access Age.
-- [ ] **2.2 Tax Logic Refinement:** Tapered Annual Allowance, Pension Carry-forward, Marriage Allowance.
+- [ ] **2.2 Decumulation Engine:** Logic for the "Exit" phase. Strategies for Pension Drawdown, Tax-Free Lump Sum (PCLS) optimization, and sustainable withdrawal rates.
+- [ ] **2.3 Tax Logic Refinement:** Tapered Annual Allowance, Pension Carry-forward, Marriage Allowance.
 
-### Phase 15: Platform Maturity
-- [ ] **4.1 Authentication:** Multi-user support.
+### 3. Phase 12b: Probabilistic Modelling (Advanced Mode)
+*Addressing uncertainty.*
+- [ ] **1.2 Monte Carlo Simulation:** An optional "Toggle" mode to run thousands of simulations with variable market returns.
+- [ ] **1.3 Confidence Intervals:** Visualizing the "Cone of Uncertainty" (e.g., 90% chance of solvency) rather than a single deterministic line.
+
+### 4. Phase 16: Governance & Insight
+*Making the "Black Box" transparent and strategic.*
+- [ ] **5.1 Tax Regime Transparency:** UI for viewing and editing Tax Bands, Rates, and Limits (moving hardcoded logic to editable data).
+- [ ] **5.2 Strategy Audit Report:** A narrative report explaining *how* the scenario is optimizing tax (e.g., "Utilizing 100% of ISA allowance to save £X in future tax").
+
+### 5. Phase 15: Platform Maturity
+- [ ] **4.1 Authentication:** Multi-user support (Login/Sign-up).
+
+### Future Considerations (Low Priority)
 - [ ] **3.1 Mobile Responsiveness:** Adapting the Sidebar/Modelling layout for phones/tablets.
 - [ ] **4.2 Deployment:** Production Docker Compose, Nginx proxy, CI/CD pipeline.
