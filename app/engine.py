@@ -596,7 +596,10 @@ def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schema
 
 def run_projection(db: Session, scenario: models.Scenario, months: int) -> schemas.Projection:
     all_accounts = scenario.accounts
-    if not all_accounts: return schemas.Projection(data_points=[])
+    # FIX: We previously returned empty list if no accounts, causing Chart.js crash.
+    # Now we allow the loop to run even with no accounts to generate zero-spine dates.
+    # if not all_accounts: return schemas.Projection(data_points=[])
+    
     start_date: date = scenario.start_date
     initial_balances = {acc.id: acc.starting_balance for acc in all_accounts}
     initial_costs = {acc.id: (acc.book_cost if acc.book_cost is not None else acc.starting_balance) for acc in all_accounts}
