@@ -1,32 +1,16 @@
-from dataclasses import dataclass, field
+import math
 from dateutil.relativedelta import relativedelta
 from datetime import date
-from . import models, schemas, utils, enums
-from .services.tax import TaxService
-from sqlalchemy.orm import Session
 from typing import Dict, List, Any, Optional
-import math
-import sys
+from sqlalchemy.orm import Session
 
-@dataclass
-class ProjectionContext:
-    month_start: date
-    account_balances: Dict[int, int]
-    account_book_costs: Dict[int, int]
-    flows: Dict[int, Any]
-    ytd_contributions: Dict = field(default_factory=dict)
-    ytd_earnings: Dict = field(default_factory=dict)
-    ytd_interest: Dict = field(default_factory=dict)
-    ytd_gains: Dict = field(default_factory=dict)
-    warnings: List = field(default_factory=list)
-    rule_logs: List = field(default_factory=list)
-    mortgage_state: Dict = field(default_factory=dict)
-    mortgage_stats: List = field(default_factory=list)
-    annotations: List = field(default_factory=list)
-    all_accounts: List[models.Account] = field(default_factory=list)
-    prev_balances: Dict[int, int] = field(default_factory=dict)
+# Absolute imports for the new package location
+from app import models, schemas, utils, enums
+from app.services.tax import TaxService
 
-# ... (Standard helpers) ...
+# Import the extracted context
+from .context import ProjectionContext
+
 def _calculate_disposal_impact(withdrawal_amount: int, current_balance: int, current_book_cost: int, account_type: enums.AccountType, tax_wrapper: enums.TaxWrapper) -> tuple[int, int]:
     # EXEMPTIONS: 
     # 1. Tax Wrappers (ISA/Pension)
