@@ -2,7 +2,7 @@ from dateutil.relativedelta import relativedelta
 from app import models, enums, schemas
 from app.services.tax import TaxService
 from app.engine.context import ProjectionContext
-from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact
+from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact, validate_pension_access
 
 def process_events(scenario: models.Scenario, context: ProjectionContext):
     next_month_start = context.month_start + relativedelta(months=1)
@@ -15,6 +15,13 @@ def process_events(scenario: models.Scenario, context: ProjectionContext):
                 context.annotations.append(schemas.ProjectionAnnotation(date=event.event_date, label=event.name, type="transaction"))
                 
             if event.event_type == enums.FinancialEventType.INCOME_EXPENSE and event.from_account_id in context.account_balances:
+                
+                # PENSION LOCK CHECK
+                lock_msg = validate_pension_access(context, event.from_account_id)
+                if lock_msg:
+                    context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=event.from_account_id, message=f"Event Skipped: {lock_msg}", source_type="event", source_id=event.id))
+                    continue
+
                 if event.value > 0:
                      headroom = get_contribution_headroom(context, event.from_account_id, scenario.tax_limits)
                      if headroom < event.value:
@@ -24,6 +31,13 @@ def process_events(scenario: models.Scenario, context: ProjectionContext):
                 context.account_book_costs[event.from_account_id] += event.value 
                 context.flows[event.from_account_id]["events"] += event.value / 100.0
             elif event.event_type == enums.FinancialEventType.TRANSFER and event.from_account_id in context.account_balances and event.to_account_id in context.account_balances:
+                
+                # PENSION LOCK CHECK
+                lock_msg = validate_pension_access(context, event.from_account_id)
+                if lock_msg:
+                    context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=event.from_account_id, message=f"Event Skipped: {lock_msg}", source_type="event", source_id=event.id))
+                    continue
+                
                 headroom = get_contribution_headroom(context, event.to_account_id, scenario.tax_limits)
                 if headroom < event.value:
                      context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=event.to_account_id, message=f"Tax Limit: Transfer Event '{event.name}' exceeds allowance.", source_type="event", source_id=event.id))

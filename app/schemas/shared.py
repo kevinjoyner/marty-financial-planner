@@ -31,3 +31,5 @@ class AccountBase(BaseModel):
 class OwnerBase(BaseModel):
     name: str
     notes: Optional[str] = None
+    birth_date: Optional[date] = None
+    retirement_age: Optional[int] = 65

@@ -1,7 +1,7 @@
 from app import models, enums, schemas, utils
 from app.services.tax import TaxService
 from app.engine.context import ProjectionContext
-from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact
+from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact, validate_pension_access
 
 def process_rules(scenario: models.Scenario, context: ProjectionContext):
     seen_ids = set(); unique_rules = []
@@ -24,6 +24,14 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
         target_bal = context.account_balances.get(target_id, 0)
         source_acc = next((a for a in context.all_accounts if a.id == source_id), None)
         if source_acc and source_acc.account_type == enums.AccountType.RSU_GRANT: continue
+        
+        # PENSION LOCK CHECK
+        lock_msg = validate_pension_access(context, source_id)
+        if lock_msg:
+            # We don't always spam warnings for rules, maybe just once a year? 
+            # But for safety, let's warn.
+            context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=source_id, message=f"Rule Skipped: {lock_msg}", source_type="rule", source_id=rule.id))
+            continue
         
         trigger_pence = int(rule.trigger_value)
         

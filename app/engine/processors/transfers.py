@@ -1,7 +1,7 @@
 from app import models, enums, schemas
 from app.services.tax import TaxService
 from app.engine.context import ProjectionContext
-from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact
+from app.engine.tax_logic import track_contribution, get_contribution_headroom, calculate_disposal_impact, validate_pension_access
 
 def process_transfers(scenario: models.Scenario, context: ProjectionContext):
     seen_ids = set(); unique_transfers = []
@@ -23,6 +23,12 @@ def process_transfers(scenario: models.Scenario, context: ProjectionContext):
         elif transfer.cadence.value == 'quarterly' and context.month_start.month in [1, 4, 7, 10]: should = True
         elif transfer.cadence.value == 'annually' and context.month_start.month == transfer.start_date.month: should = True
         if should:
+            # PENSION LOCK CHECK
+            lock_msg = validate_pension_access(context, transfer.from_account_id)
+            if lock_msg:
+                context.warnings.append(schemas.ProjectionWarning(date=context.month_start, account_id=transfer.from_account_id, message=lock_msg, source_type="transfer", source_id=transfer.id))
+                continue
+
             if transfer.show_on_chart:
                 context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label=transfer.name, type="transaction"))
             

@@ -1,6 +1,9 @@
-from typing import List
+from typing import List, Optional
+from dateutil.relativedelta import relativedelta
 from app import enums, models
 from .context import ProjectionContext
+
+PENSION_ACCESS_AGE = 57
 
 def calculate_disposal_impact(withdrawal_amount: int, current_balance: int, current_book_cost: int, account_type: enums.AccountType, tax_wrapper: enums.TaxWrapper) -> tuple[int, int]:
     # EXEMPTIONS: 
@@ -59,3 +62,30 @@ def get_contribution_headroom(context: ProjectionContext, account_id: int, tax_l
         headroom = max(0, limit.amount - limit_usage)
         if headroom < min_headroom: min_headroom = headroom
     return min_headroom
+
+def validate_pension_access(context: ProjectionContext, account_id: int) -> Optional[str]:
+    """
+    Checks if a withdrawal from this account is allowed based on Pension Age rules.
+    Returns None if allowed.
+    Returns a string Error Message if blocked.
+    """
+    acc = next((a for a in context.all_accounts if a.id == account_id), None)
+    if not acc: return None
+    
+    # Only care about Pensions
+    if acc.tax_wrapper != enums.TaxWrapper.PENSION: return None
+    
+    # If no owner, we can't enforce age, so allow it (or block? allow for flexibility)
+    if not acc.owners: return None
+    
+    owner = acc.owners[0]
+    if not owner.birth_date: return None # Can't calculate age
+    
+    # Calculate Age
+    diff = relativedelta(context.month_start, owner.birth_date)
+    age_years = diff.years
+    
+    if age_years < PENSION_ACCESS_AGE:
+        return f"Pension Locked: {owner.name} is {age_years} (Min: {PENSION_ACCESS_AGE})"
+    
+    return None

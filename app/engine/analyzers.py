@@ -1,7 +1,25 @@
+from dateutil.relativedelta import relativedelta
 from app import enums, schemas
 from app.engine.context import ProjectionContext
 
 def detect_milestones(context: ProjectionContext):
+    
+    # 0. Retirement Party
+    # Iterate unique owners found on accounts.
+    seen_owners = set()
+    for acc in context.all_accounts:
+        if acc.owners:
+            for owner in acc.owners:
+                if owner.id in seen_owners: continue
+                seen_owners.add(owner.id)
+                
+                if owner.birth_date and owner.retirement_age:
+                    # Check age this month
+                    age_rel = relativedelta(context.month_start, owner.birth_date)
+                    # If exactly X years and 0 months
+                    if age_rel.years == owner.retirement_age and age_rel.months == 0:
+                        context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label=f"Retirement: {owner.name}", type="milestone"))
+
     # 1. Debt Freedom - Individual
     for acc in context.all_accounts:
         if acc.account_type in [enums.AccountType.MORTGAGE, enums.AccountType.LOAN]:
@@ -48,6 +66,7 @@ def detect_milestones(context: ProjectionContext):
             if prev_bal < 0: prev_debt += abs(prev_bal)
     
     # Milestone: Liquid Assets exceed Total Debt for the first time
-    # Check prev_debt > 0 to ensure we actually *had* debt to clear
     if prev_liquid < prev_debt and curr_liquid >= curr_debt and prev_debt > 0:
-         context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
+         # FIX: Check if already added to avoid duplicates from volatility
+         if not any(a.label == "Liquid assets exceed liabilities" for a in context.annotations):
+             context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))

@@ -78,6 +78,8 @@ class OwnerUpdate(BaseModel):
     name: Optional[str] = None
     notes: Optional[str] = None
     scenario_id: Optional[int] = None
+    birth_date: Optional[date] = None
+    retirement_age: Optional[int] = None
 
 class Owner(OwnerBase):
     id: int
