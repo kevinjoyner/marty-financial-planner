@@ -1,13 +1,13 @@
-# Marty: Personal Financial Simulation Cockpit
+# Marty: Personal Financial Planning & Simulation Engine
 
 Marty is a deterministic financial simulation engine designed to model personal wealth trajectories with accounting-level precision. Unlike standard budgeting apps that track *past* spending, Marty projects *future* outcomes based on complex, interacting rules.
 
-## Core Product Concept: "The Cockpit"
+## Core Product Concept: Integrated Scenario Planning
 
-Marty is built around the concept of a **Financial Cockpit**. 
-- **Center Stage (The Reality):** Your defined financial state (Income, Accounts, Recurring Expenses, Tax Rules).
-- **Modelling Bar (The What-If):** A non-destructive scratchpad on the right. You can "Pin" **any** variable (e.g., Salary, Mortgage Rate, ISA Limit, Inflation) to the bar and adjust it to see real-time impacts.
-- **Ghost Charting:** Visualizes your "Baseline" (Current Reality) vs. "Projected" (Simulated Reality) simultaneously to show the delta of your decisions.
+Marty is built around a unified **Financial Simulation Environment** designed to support data-driven decision making.
+- **The Dashboard (Current Reality):** Your defined financial state (Income, Accounts, Recurring Expenses, Tax Rules).
+- **Modelling Bar (The What-If):** A non-destructive scratchpad on the right. You can "Pin" **any** variable (e.g., Salary, Mortgage Rate, ISA Limit, Inflation) to the bar and adjust it to see real-time impacts on your forecast.
+- **Comparative Analysis:** Visualizes your "Baseline" (Current Reality) vs. "Projected" (Simulated Reality) simultaneously to show the delta of your decisions.
 - **Timeline Intelligence:** Automated markers on the chart answer "When?" questions (e.g. "When will I be debt free?").
 
 ## Feature Specifications
