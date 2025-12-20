@@ -44,7 +44,7 @@ Marty models the UK tax regime to ensure projections are realistic.
 * **Tax Limits:** Configurable limits for ISAs, Pensions, and LISAs to prevent over-contribution in simulations.
 * **Accounts:**
     * **Liquid:** Cash, Current Accounts.
-    * **Investments:** GIA, ISA (Tax wrappers applied).
+    * **Investments:** GIA, and tax-wrapped ISAs, LISAs and Pensions.
     * **Liabilities:** Mortgages (Amortization schedules, Overpayment logic, Fixed Rate periods).
     * **RSUs:** Unvested stock grants with specific vesting schedules.
 * **Flows:**
