@@ -108,7 +108,10 @@ const ACCT_TYPES = ["Cash", "Investment", "Property", "Mortgage", "Loan", "RSU G
                         <div class="relative"><span class="absolute left-3 top-2 text-slate-400">£</span><input type="number" v-model="form.amount" class="w-full border border-slate-300 rounded-md pl-7 pr-3 py-2 text-sm"></div>
                     </div>
                     
-                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Start Date</label><input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-700 mb-1">Start Date</label><input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                        <div><label class="block text-sm font-medium text-slate-700 mb-1">End Date <span class="text-xs text-slate-400 font-normal">(Optional)</span></label><input type="date" v-model="form.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                    </div>
 
                     <div class="pt-2 border-t border-slate-100">
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Tax Wrappers</label>
