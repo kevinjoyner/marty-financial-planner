@@ -24,7 +24,7 @@ The core of Marty is a time-series projection engine.
 * **Tax Limits:** Configurable limits for ISAs, Pensions, and LISAs.
 * **Accounts:**
     * **Liquid:** Cash, Current Accounts.
-    * **Investments:** GIA, ISA (Tax wrappers applied).
+    * **Investments:** GIA, and tax-wrapped ISAs, LISAs and Pensions.
     * **Liabilities:** Mortgages (Amortization schedules, Overpayment logic, Fixed Rate periods).
     * **RSUs:** Unvested stock grants with specific vesting schedules.
 * **Flows:**
