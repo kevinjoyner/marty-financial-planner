@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/kevinjoyner/marty-financial-planner:latest
+    image: ghcr.io/kevinjoyner/marty-financial-planner:staging
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -8,7 +8,7 @@ services:
     volumes:
       - marty_data:/data
     labels:
-      - "com.centurylinklabs.watchtower.enable=true"  # Tell Watchtower to update this
+      - "com.centurylinklabs.watchtower.enable=true"
 
   watchtower:
     image: containrrr/watchtower
@@ -16,11 +16,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Use the same credentials you generated for Portainer
       - REPO_USER=${GH_USER}
       - REPO_PASS=${GH_PAT}
       - DOCKER_API_VERSION=1.44
-    command: --interval 300 --cleanup --label-enable # Check every 5 mins, clean old images, only update labeled containers
+    command: --interval 300 --cleanup --label-enable
     restart: unless-stopped
 
 volumes:

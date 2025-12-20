@@ -2,10 +2,10 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "staging" ]
+    branches: [ "staging", "main" ]
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "staging" ]
+    branches: [ "staging", "main" ]
 
 env:
   REGISTRY: ghcr.io
@@ -52,6 +52,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
             type=sha
 
       # 3. Build for BOTH platforms
@@ -60,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64  # <--- The Magic Line
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
