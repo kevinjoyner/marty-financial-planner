@@ -1,4 +1,9 @@
 import pytest
+import os
+
+# Force environment to 'testing' to prevent 'dev_' prefix injection in scenarios
+os.environ["ENVIRONMENT"] = "testing"
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
