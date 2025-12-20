@@ -123,8 +123,18 @@ const chartData = computed(() => {
   const showGhost = store.activeOverrideCount > 0 && basePoints && basePoints.length > 0;
 
   if (props.aggregationMode === 'total') {
-      datasets.push({ label: 'Net Worth', data: simPoints.map(p => p.balance), borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
-      if (showGhost) datasets.push({ label: 'Net Worth (Base)', data: basePoints.map(p => p.balance), borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
+      // FIX: Calculate total dynamically from visible accounts
+      const data = simPoints.map(p => {
+          return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
+      });
+      datasets.push({ label: 'Net Worth', data: data, borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
+      
+      if (showGhost) {
+          const ghostData = basePoints.map(p => {
+              return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
+          });
+          datasets.push({ label: 'Net Worth (Base)', data: ghostData, borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
+      }
   } else if (props.aggregationMode === 'category') {
       const categories = ['liquid', 'illiquid', 'liabilities', 'unvested'];
       const catMap = store.accountsByCategory; 
