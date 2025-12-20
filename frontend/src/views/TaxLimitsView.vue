@@ -26,12 +26,22 @@ const openEdit = (item, type) => {
             account_types: item.account_types ? [...item.account_types] : []
         }
     } else {
-        form.value = { ...item }
+        // Owner editing
+        form.value = { 
+            ...item,
+            // Ensure we have defaults if missing
+            retirement_age: item.retirement_age || 65
+        }
     }
 }
 
 const openCreatePerson = () => {
-    const newOwner = { id: 'new', name: 'New Person', type: 'owner' }
+    const newOwner = { 
+        id: 'new', 
+        name: 'New Person', 
+        type: 'owner',
+        retirement_age: 65
+    }
     editingItem.value = newOwner;
     form.value = { ...newOwner };
 }
@@ -77,7 +87,14 @@ const ACCT_TYPES = ["Cash", "Investment", "Property", "Mortgage", "Loan", "RSU G
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div v-for="owner in store.scenario.owners" :key="owner.id" class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex items-center justify-between group hover:border-blue-300 transition-colors">
-                        <div class="flex items-center gap-4"><div class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><Users class="w-6 h-6" /></div><div><h3 class="text-lg font-semibold text-slate-900">{{ owner.name }}</h3><p class="text-xs text-slate-400">Tax Entity</p></div></div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><Users class="w-6 h-6" /></div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-900">{{ owner.name }}</h3>
+                                <p class="text-xs text-slate-400" v-if="owner.birth_date">Born: {{ owner.birth_date }} (Retires: {{ owner.retirement_age }})</p>
+                                <p class="text-xs text-slate-400" v-else>No details set</p>
+                            </div>
+                        </div>
                         <button @click="openEdit(owner, 'owner')" class="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"><Pencil class="w-4 h-4" /></button>
                     </div>
                 </div>
@@ -100,7 +117,22 @@ const ACCT_TYPES = ["Cash", "Investment", "Property", "Mortgage", "Loan", "RSU G
         </div>
         <Drawer :isOpen="!!editingItem" :title="editingItem?.id === 'new' ? (editingItem.type === 'owner' ? 'New Person' : 'New Limit') : (editingItem?.type === 'owner' ? 'Edit Person' : 'Edit Tax Limit')" @close="editingItem = null" @save="save">
             <div v-if="editingItem" class="space-y-4">
-                <div v-if="editingItem.type === 'owner'"><div><label class="block text-sm font-medium text-slate-700 mb-1">Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div></div>
+                <div v-if="editingItem.type === 'owner'" class="space-y-4"> <div><label class="block text-sm font-medium text-slate-700 mb-1">Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
+                            <input type="date" v-model="form.birth_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Retirement Age</label>
+                            <div class="relative">
+                                <input type="number" v-model="form.retirement_age" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm pr-8">
+                                <span class="absolute right-3 top-2 text-slate-400 text-xs">Yrs</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div v-else>
                     <div><label class="block text-sm font-medium text-slate-700 mb-1">Allowance Name</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                     <div>
