@@ -7,6 +7,9 @@ export const useSimulationStore = defineStore('simulation', () => {
   const savedId = localStorage.getItem('marty_active_scenario_id')
   const activeScenarioId = ref(savedId ? parseInt(savedId) : null)
   const isInternalLoading = ref(false)
+  // Alias for components expecting .loading
+  const loading = computed(() => isInternalLoading.value)
+  
   const scenario = ref(null)
   const simulationMonths = ref(120)
   
@@ -28,6 +31,7 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   async function init() {
+    // 1. Auto-Discovery Logic
     if (!activeScenarioId.value) {
         try {
             const list = await api.getScenarios();
@@ -35,12 +39,22 @@ export const useSimulationStore = defineStore('simulation', () => {
             else return;
         } catch (e) { return; }
     }
+    
     isInternalLoading.value = true;
     try {
         await loadScenario();
         await runBaseline();
     } catch (e) { 
         console.error("Init failed:", e);
+        // Fallback: If 404, try to recover by fetching list again
+        try {
+             const list = await api.getScenarios();
+             if (list.length > 0) {
+                 activeScenarioId.value = list[0].id;
+                 await loadScenario();
+                 await runBaseline();
+             }
+        } catch (innerE) { console.error("Recovery failed", innerE); }
     } finally { isInternalLoading.value = false; }
   }
 
@@ -74,9 +88,7 @@ export const useSimulationStore = defineStore('simulation', () => {
         simulationData.value = baselineData.value;
         return;
     }
-    
     const apiOverrides = getApiOverrides();
-    
     try {
         const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, apiOverrides);
         simulationData.value = res;
@@ -90,7 +102,6 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      // Snapshot current state for history before saving
       if (scenario.value && id !== 'new') { 
           history.value.unshift({
               timestamp: new Date(),
@@ -102,11 +113,7 @@ export const useSimulationStore = defineStore('simulation', () => {
 
       try {
           const payload = { ...data };
-          
-          // Ensure scenario_id is set for new items
-          if (id === 'new') {
-              payload.scenario_id = activeScenarioId.value;
-          }
+          if (id === 'new') payload.scenario_id = activeScenarioId.value;
 
           // Pence Conversion Logic
           if (payload.value !== undefined) payload.value = Math.round(payload.value * 100);
@@ -122,7 +129,13 @@ export const useSimulationStore = defineStore('simulation', () => {
               }
           }
 
-          if (type === 'account') {
+          // --- API Mapping ---
+          if (type === 'decumulation_strategy') {
+              const url = id === 'new' ? '/api/decumulation_strategies/' : `/api/decumulation_strategies/${id}`;
+              const method = id === 'new' ? 'POST' : 'PUT';
+              await api.fetch(url, { method, body: JSON.stringify(payload) });
+          }
+          else if (type === 'account') {
               if (id === 'new') await api.createAccount(payload);
               else await api.updateAccount(id, payload);
           }
@@ -150,7 +163,7 @@ export const useSimulationStore = defineStore('simulation', () => {
                if (id === 'new') await api.createTaxLimit(activeScenarioId.value, payload);
                else await api.updateTaxLimit(id, payload);
           }
-          else if (type === 'rule') {
+          else if (type === 'rule' || type === 'automation_rule') {
               if(id === 'new') await api.createRule(payload);
               else await api.updateRule(id, payload);
           }
@@ -175,7 +188,8 @@ export const useSimulationStore = defineStore('simulation', () => {
           else if (type === 'event') url = `/api/financial_events/${id}`;
           else if (type === 'owner') url = `/api/owners/${id}`;
           else if (type === 'tax_limit') url = `/api/tax_limits/${id}`;
-          else if (type === 'rule') url = `/api/automation_rules/${id}`;
+          else if (type === 'rule' || type === 'automation_rule') url = `/api/automation_rules/${id}`;
+          else if (type === 'decumulation_strategy') url = `/api/decumulation_strategies/${id}`;
           
           await api.deleteResource(url);
           
@@ -270,7 +284,7 @@ export const useSimulationStore = defineStore('simulation', () => {
   })
 
   return {
-    activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
+    activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history, loading,
     loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides,
     activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline
   }

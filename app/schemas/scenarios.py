@@ -6,7 +6,7 @@ from .shared import AccountBase, OwnerBase
 from .items import IncomeSource, Cost, FinancialEvent, Transfer, ChartAnnotation
 from .rules import AutomationRule
 
-class SimulationOverrideBase(BaseModel):
+class SimulationOverride(BaseModel):
     type: str  
     id: int
     field: str 
@@ -15,7 +15,7 @@ class SimulationOverrideBase(BaseModel):
 class ScenarioForkRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    overrides: List[SimulationOverrideBase] = []
+    overrides: List[SimulationOverride] = []
 
 class TaxLimitBase(BaseModel):
     name: str
@@ -87,6 +87,26 @@ class Owner(OwnerBase):
     income_sources: List[IncomeSource] = []
     model_config = ConfigDict(from_attributes=True)
 
+# --- DECUMULATION STRATEGIES (Defined BEFORE Scenario) ---
+class DecumulationStrategyBase(BaseModel):
+    name: str
+    strategy_type: str = "automated"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    enabled: bool = True
+
+class DecumulationStrategyCreate(DecumulationStrategyBase):
+    scenario_id: int
+
+class DecumulationStrategyUpdate(DecumulationStrategyBase):
+    pass
+
+class DecumulationStrategy(DecumulationStrategyBase):
+    id: int
+    scenario_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+# --- SCENARIO ---
 class ScenarioBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -114,6 +134,7 @@ class Scenario(ScenarioBase):
     automation_rules: List[AutomationRule] = []
     tax_limits: List[TaxLimit] = [] 
     chart_annotations: List[ChartAnnotation] = []
+    decumulation_strategies: List[DecumulationStrategy] = []
     model_config = ConfigDict(from_attributes=True)
 
 class ScenarioHistory(BaseModel):
@@ -137,3 +158,4 @@ class ScenarioImport(BaseModel):
     tax_limits: List[Dict[str, Any]] = []
     automation_rules: List[Dict[str, Any]] = []
     chart_annotations: List[Dict[str, Any]] = []
+    decumulation_strategies: List[Dict[str, Any]] = []

@@ -8,6 +8,14 @@ import { AlertTriangle, ChevronDown, ChevronUp, Lock, Unlock, Download, FileText
 import { exportBalancesToCSV, exportFlowsToCSV } from '../utils/export'
 
 const store = useSimulationStore()
+// Helper to safely format date
+const formatDateForInput = (dateVal) => {
+    if (!dateVal) return ""
+    if (typeof dateVal === "string" && dateVal.match(/^\d{4}-\d{2}-\d{2}$/)) return dateVal
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return ""
+    return d.toISOString().split("T")[0]
+}
 const alertsExpanded = ref(false)
 const isAxisFrozen = ref(false)
 

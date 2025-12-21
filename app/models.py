@@ -20,6 +20,7 @@ class Scenario(Base):
     tax_limits = relationship("TaxLimit", back_populates="scenario", cascade="all, delete-orphan")
     automation_rules = relationship("AutomationRule", back_populates="scenario", cascade="all, delete-orphan")
     chart_annotations = relationship("ChartAnnotation", back_populates="scenario", cascade="all, delete-orphan")
+    decumulation_strategies = relationship("DecumulationStrategy", back_populates="scenario", cascade="all, delete-orphan")
     history = relationship("ScenarioHistory", back_populates="scenario", cascade="all, delete-orphan")
 
 class Owner(Base):
@@ -186,3 +187,14 @@ class ScenarioHistory(Base):
     action_description = Column(String)
     snapshot_data = Column(JSON)
     scenario = relationship("Scenario", back_populates="history")
+
+class DecumulationStrategy(Base):
+    __tablename__ = "decumulation_strategies"
+    id = Column(Integer, primary_key=True, index=True)
+    scenario_id = Column(Integer, ForeignKey("scenarios.id", ondelete="CASCADE"))
+    name = Column(String)
+    strategy_type = Column(String, default="automated")
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    enabled = Column(Boolean, default=True)
+    scenario = relationship("Scenario", back_populates="decumulation_strategies")

@@ -53,7 +53,7 @@ def delete_scenario(db: Session, scenario_id: int):
     db.commit()
     return db_scenario
 
-def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, overrides: List[schemas.SimulationOverrideBase] = None):
+def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, overrides: List[schemas.SimulationOverride] = None):
     original = get_scenario(db, scenario_id)
     if not original: return None
 

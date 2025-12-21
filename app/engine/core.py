@@ -1,3 +1,4 @@
+from .processors.decumulation import process_decumulation
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
@@ -80,6 +81,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int) -> schem
         process_rsu_vesting(scenario, context)
         process_standard_mortgage_payments(scenario, context)
         process_rules(scenario, context)
+        process_decumulation(scenario, context)
         process_interest(scenario, context)
         # ----------------------
         

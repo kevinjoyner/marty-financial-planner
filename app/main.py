@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from .routers import scenarios, owners, accounts, projections, rules, transfers, financial_events, costs, income_sources, tax_limits
+from .routers import scenarios, owners, accounts, projections, rules, transfers, financial_events, costs, income_sources, tax_limits, strategies
 from .database import engine, Base
 
 # Create tables (if not exist)
@@ -19,6 +19,7 @@ app.include_router(costs.router, prefix="/api", tags=["costs"])
 app.include_router(financial_events.router, prefix="/api", tags=["financial_events"])
 app.include_router(transfers.router, prefix="/api", tags=["transfers"])
 app.include_router(rules.router, prefix="/api", tags=["rules"])
+app.include_router(strategies.router, prefix="/api", tags=["strategies"])
 app.include_router(tax_limits.router, prefix="/api", tags=["tax_limits"])
 app.include_router(projections.router, prefix="/api", tags=["projections"])
 
