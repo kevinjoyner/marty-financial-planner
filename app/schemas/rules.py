@@ -1,43 +1,40 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import date
 from ..enums import RuleType, Cadence
 
 class AutomationRuleBase(BaseModel):
-    name: Optional[str] = "New Rule" 
-    priority: Optional[int] = 0
+    name: str
+    scenario_id: int
     rule_type: RuleType
-    source_account_id: Optional[int] = None
+    source_account_id: int
     target_account_id: Optional[int] = None
-    trigger_value: float 
-    transfer_value: Optional[float] = None 
-    transfer_cap: Optional[float] = None
-    start_date: Optional[date] = None      
+    trigger_value: int = 0
+    transfer_value: Optional[float] = None
+    transfer_cap: Optional[int] = None
+    priority: int = 0
+    cadence: Cadence = Cadence.MONTHLY
+    start_date: Optional[date] = None
     end_date: Optional[date] = None
-    
-    # FIX: Make cadence Optional to handle legacy NULLs
-    cadence: Optional[Cadence] = Cadence.MONTHLY
-    
     notes: Optional[str] = None
 
 class AutomationRuleCreate(AutomationRuleBase):
-    scenario_id: int
+    pass
 
 class AutomationRuleUpdate(BaseModel):
     name: Optional[str] = None
-    priority: Optional[int] = None
     rule_type: Optional[RuleType] = None
     source_account_id: Optional[int] = None
     target_account_id: Optional[int] = None
-    trigger_value: Optional[float] = None
+    trigger_value: Optional[int] = None
     transfer_value: Optional[float] = None
-    transfer_cap: Optional[float] = None
+    transfer_cap: Optional[int] = None
+    priority: Optional[int] = None
+    cadence: Optional[Cadence] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    cadence: Optional[Cadence] = None
     notes: Optional[str] = None
 
 class AutomationRule(AutomationRuleBase):
     id: int
-    scenario_id: int
     model_config = ConfigDict(from_attributes=True)

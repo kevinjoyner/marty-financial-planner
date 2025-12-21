@@ -6,7 +6,7 @@ from .shared import AccountBase, OwnerBase
 from .items import IncomeSource, Cost, FinancialEvent, Transfer, ChartAnnotation
 from .rules import AutomationRule
 
-class SimulationOverrideBase(BaseModel):
+class SimulationOverride(BaseModel):
     type: str  
     id: int
     field: str 
@@ -15,7 +15,7 @@ class SimulationOverrideBase(BaseModel):
 class ScenarioForkRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    overrides: List[SimulationOverrideBase] = []
+    overrides: List[SimulationOverride] = []
 
 class TaxLimitBase(BaseModel):
     name: str
@@ -92,6 +92,13 @@ class DecumulationStrategyBase(BaseModel):
     strategy_type: str = "automated"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    enabled: bool = True
+
+class DecumulationStrategyCreate(DecumulationStrategyBase):
+    scenario_id: int
+
+class DecumulationStrategyUpdate(DecumulationStrategyBase):
+    pass
 
 class DecumulationStrategy(DecumulationStrategyBase):
     id: int

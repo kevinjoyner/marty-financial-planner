@@ -1,8 +1,7 @@
 from pydantic import BaseModel
-from typing import Dict, List, Any, Optional
+from typing import List, Dict, Optional, Any
 from datetime import date
 
-# --- OUTPUT SCHEMAS ---
 class ProjectionFlows(BaseModel):
     income: float = 0
     costs: float = 0
@@ -16,17 +15,18 @@ class ProjectionFlows(BaseModel):
     cgt: float = 0
     employer_contribution: float = 0
 
+class ProjectionDataPoint(BaseModel):
+    date: date
+    balance: float
+    account_balances: Dict[int, float] # AccountID -> Balance (Float/Pounds)
+    flows: Dict[int, ProjectionFlows]  # AccountID -> Flows
+
 class ProjectionWarning(BaseModel):
     date: date
-    account_id: int
+    account_id: Optional[int] = None
     message: str
-    source_type: str = "system"
-    source_id: int = 0
-
-class ProjectionAnnotation(BaseModel):
-    date: date
-    label: str
-    type: str = "default" 
+    source_type: str
+    source_id: Optional[int] = None
 
 class RuleExecutionLog(BaseModel):
     date: date
@@ -45,26 +45,14 @@ class MortgageStat(BaseModel):
     paid: float
     headroom: float
 
-class ProjectionDataPoint(BaseModel):
+class ProjectionAnnotation(BaseModel):
     date: date
-    balance: float
-    account_balances: Dict[int, float]
-    flows: Dict[int, ProjectionFlows] = {}
+    label: str
+    type: str
 
 class Projection(BaseModel):
     data_points: List[ProjectionDataPoint]
-    warnings: List[ProjectionWarning] = []
-    annotations: List[ProjectionAnnotation] = []
-    rule_logs: List[RuleExecutionLog] = [] 
-    mortgage_stats: List[MortgageStat] = []
-
-# --- INPUT SCHEMAS (SIMULATION) ---
-class SimulationOverride(BaseModel):
-    type: str  
-    id: int
-    field: str 
-    value: Any 
-
-class ProjectionRequest(BaseModel):
-    simulation_months: Optional[int] = None
-    overrides: List[SimulationOverride] = []
+    warnings: List[ProjectionWarning]
+    rule_logs: List[RuleExecutionLog]
+    mortgage_stats: List[MortgageStat]
+    annotations: List[ProjectionAnnotation]

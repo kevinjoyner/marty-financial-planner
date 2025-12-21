@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 from . import enums
+from sqlalchemy import Table
 
 class Scenario(Base):
     __tablename__ = "scenarios"
@@ -43,7 +44,7 @@ class Account(Base):
     notes = Column(String, nullable=True)
     account_type = Column(SQLEnum(enums.AccountType))
     tax_wrapper = Column(SQLEnum(enums.TaxWrapper), default=enums.TaxWrapper.NONE)
-    starting_balance = Column(Integer) # Pence
+    starting_balance = Column(Integer)
     interest_rate = Column(Float, default=0.0)
     currency = Column(SQLEnum(enums.Currency), default=enums.Currency.GBP)
     
@@ -66,7 +67,6 @@ class Account(Base):
     scenario = relationship("Scenario", back_populates="accounts")
     owners = relationship("Owner", secondary="account_owners", backref="accounts")
 
-from sqlalchemy import Table
 account_owners = Table('account_owners', Base.metadata,
     Column('account_id', Integer, ForeignKey('accounts.id')),
     Column('owner_id', Integer, ForeignKey('owners.id'))
@@ -196,4 +196,5 @@ class DecumulationStrategy(Base):
     strategy_type = Column(String, default="automated")
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
+    enabled = Column(Boolean, default=True) # Added field
     scenario = relationship("Scenario", back_populates="decumulation_strategies")

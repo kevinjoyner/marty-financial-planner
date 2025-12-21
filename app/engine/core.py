@@ -43,6 +43,10 @@ def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schema
         elif override.type == 'rule':
             rule = next((r for r in scenario.automation_rules if r.id == override.id), None)
             if rule and hasattr(rule, override.field): setattr(rule, override.field, override.value)
+        # ADDED: Support Decumulation overrides (e.g. enabling/disabling via pin)
+        elif override.type == 'decumulation_strategy':
+            strat = next((s for s in scenario.decumulation_strategies if s.id == override.id), None)
+            if strat and hasattr(strat, override.field): setattr(strat, override.field, override.value)
 
 def run_projection(db: Session, scenario: models.Scenario, months: int) -> schemas.Projection:
     all_accounts = scenario.accounts
