@@ -17,6 +17,7 @@ from app.engine.processors.rsu import process_rsu_vesting
 from app.engine.processors.rules import process_rules
 from app.engine.processors.mortgage import process_standard_mortgage_payments
 from app.engine.processors.assets import process_interest
+from app.engine.processors.decumulation import process_decumulation
 
 def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schemas.SimulationOverride]):
     for override in overrides:
@@ -80,6 +81,10 @@ def run_projection(db: Session, scenario: models.Scenario, months: int) -> schem
         process_rsu_vesting(scenario, context)
         process_standard_mortgage_payments(scenario, context)
         process_rules(scenario, context)
+        
+        # Decumulation runs AFTER regular rules but BEFORE interest
+        process_decumulation(scenario, context)
+        
         process_interest(scenario, context)
         # ----------------------
         

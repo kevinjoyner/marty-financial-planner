@@ -87,6 +87,17 @@ class Owner(OwnerBase):
     income_sources: List[IncomeSource] = []
     model_config = ConfigDict(from_attributes=True)
 
+class DecumulationStrategyBase(BaseModel):
+    name: str
+    strategy_type: str = "automated"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+class DecumulationStrategy(DecumulationStrategyBase):
+    id: int
+    scenario_id: int
+    model_config = ConfigDict(from_attributes=True)
+
 class ScenarioBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -114,6 +125,7 @@ class Scenario(ScenarioBase):
     automation_rules: List[AutomationRule] = []
     tax_limits: List[TaxLimit] = [] 
     chart_annotations: List[ChartAnnotation] = []
+    decumulation_strategies: List[DecumulationStrategy] = []
     model_config = ConfigDict(from_attributes=True)
 
 class ScenarioHistory(BaseModel):
@@ -137,3 +149,4 @@ class ScenarioImport(BaseModel):
     tax_limits: List[Dict[str, Any]] = []
     automation_rules: List[Dict[str, Any]] = []
     chart_annotations: List[Dict[str, Any]] = []
+    decumulation_strategies: List[Dict[str, Any]] = []
