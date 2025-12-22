@@ -5,17 +5,17 @@ from ..enums import Cadence, Currency, FinancialEventType
 
 class IncomeSourceBase(BaseModel):
     name: str
-    amount: Optional[int] = None # Legacy support
+    amount: Optional[int] = None 
     net_value: int
     cadence: Cadence
     start_date: date
     end_date: Optional[date] = None
     currency: Currency = Currency.GBP
     growth_rate: Optional[float] = 0.0
-    account_id: Optional[int] = None
+    account_id: int  # REVERTED: Mandatory
     is_pre_tax: bool = False
     salary_sacrifice_value: int = 0
-    salary_sacrifice_account_id: Optional[int] = None
+    salary_sacrifice_account_id: Optional[int] = None # Remains Optional
     taxable_benefit_value: int = 0
     employer_pension_contribution: int = 0
     notes: Optional[str] = None
@@ -51,7 +51,7 @@ class CostBase(BaseModel):
     end_date: Optional[date] = None
     currency: Currency = Currency.GBP
     growth_rate: Optional[float] = 0.0
-    account_id: Optional[int] = None
+    account_id: int # REVERTED: Mandatory
     is_recurring: bool = True
     notes: Optional[str] = None
 
@@ -81,8 +81,8 @@ class TransferBase(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     currency: Currency = Currency.GBP
-    from_account_id: int
-    to_account_id: int
+    from_account_id: int # REVERTED: Mandatory
+    to_account_id: int   # REVERTED: Mandatory
     show_on_chart: bool = False
     notes: Optional[str] = None
 

@@ -23,6 +23,7 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   watch(activeScenarioId, (newVal) => {
       if (newVal) localStorage.setItem('marty_active_scenario_id', newVal)
+      else localStorage.removeItem('marty_active_scenario_id')
   })
 
   watch(simulationMonths, (newVal) => {
@@ -46,14 +47,28 @@ export const useSimulationStore = defineStore('simulation', () => {
     isInternalLoading.value = true;
     try {
         await loadScenario();
-        await runBaseline();
+        if (scenario.value) {
+            await runBaseline();
+        }
     } catch (e) { 
         console.error("Init failed:", e);
     } finally { isInternalLoading.value = false; }
   }
 
   async function loadScenario() {
-      scenario.value = await api.getScenario(activeScenarioId.value);
+      try {
+          scenario.value = await api.getScenario(activeScenarioId.value);
+      } catch (e) {
+          console.warn(`Failed to load scenario ${activeScenarioId.value}. Resetting.`, e);
+          activeScenarioId.value = null;
+          scenario.value = null;
+          // Optional: Try to recover by loading list
+          const list = await api.getScenarios();
+          if (list.length > 0) {
+              activeScenarioId.value = list[0].id;
+              scenario.value = await api.getScenario(activeScenarioId.value);
+          }
+      }
   }
 
   function getApiOverrides() {
@@ -70,16 +85,20 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   async function runBaseline() {
-      const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
-      baselineData.value = res;
-      if (Object.keys(overrides.value).length === 0) {
-          simulationData.value = res;
-      } else {
-          await runSimulation();
-      }
+      if (!activeScenarioId.value) return;
+      try {
+          const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
+          baselineData.value = res;
+          if (Object.keys(overrides.value).length === 0) {
+              simulationData.value = res;
+          } else {
+              await runSimulation();
+          }
+      } catch (e) { console.error("Run baseline failed", e); }
   }
 
   async function runSimulation() {
+    if (!activeScenarioId.value) return;
     if (Object.keys(overrides.value).length === 0) {
         if (baselineData.value) simulationData.value = baselineData.value;
         return;
@@ -253,11 +272,25 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   const activeOverrideCount = computed(() => Object.keys(overrides.value).length)
-  const currentNetWorth = computed(() => simulationData.value?.data_points[0]?.balance || 0)
-  const projectedNetWorth = computed(() => simulationData.value?.data_points[simulationData.value.data_points.length - 1]?.balance || 0)
-  const baselineProjectedNetWorth = computed(() => baselineData.value?.data_points[baselineData.value.data_points.length - 1]?.balance || 0)
+  
+  // SAFE COMPUTEDS
+  const currentNetWorth = computed(() => {
+      if (!simulationData.value?.data_points?.length) return 0;
+      return simulationData.value.data_points[0].balance;
+  })
+  
+  const projectedNetWorth = computed(() => {
+      if (!simulationData.value?.data_points?.length) return 0;
+      return simulationData.value.data_points[simulationData.value.data_points.length - 1].balance;
+  })
+
+  const baselineProjectedNetWorth = computed(() => {
+      if (!baselineData.value?.data_points?.length) return 0;
+      return baselineData.value.data_points[baselineData.value.data_points.length - 1].balance;
+  })
+  
   const annualReturn = computed(() => {
-      if (!simulationData.value) return 0;
+      if (!simulationData.value?.data_points?.length) return 0;
       const start = currentNetWorth.value;
       const end = projectedNetWorth.value;
       const years = simulationMonths.value / 12;
