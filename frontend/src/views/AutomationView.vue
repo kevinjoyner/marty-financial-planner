@@ -17,7 +17,9 @@ const showAudit = ref(false)
 const showMortgage = ref(false)
 const form = ref({})
 const localRules = ref([])
-const strategies = ref([])
+
+// Strategies are now reactive to the store
+const strategies = computed(() => store.scenario?.decumulation_strategies || [])
 const editingStrategy = ref(null)
 const strategyForm = ref({})
 
@@ -25,14 +27,12 @@ onMounted(async () => {
     if (!store.scenario) await store.init()
     if (store.scenario) {
         localRules.value = [...store.scenario.automation_rules].sort((a,b) => a.priority - b.priority)
-        loadStrategies()
     }
 })
 
 watch(() => store.scenario, (newScenario) => {
     if (newScenario) {
         localRules.value = [...newScenario.automation_rules].sort((a,b) => a.priority - b.priority)
-        loadStrategies()
     }
 })
 
@@ -75,12 +75,7 @@ const remove = async () => {
     if (success) editingItem.value = null;
 }
 
-const loadStrategies = async () => {
-    if (!store.activeScenarioId) return;
-    try {
-        strategies.value = await api.getStrategies(store.activeScenarioId);
-    } catch (e) { console.error("Failed to load strategies", e) }
-}
+// --- Strategy Actions via Store (for History) ---
 
 const createDefaultStrategy = async () => {
     if (!store.activeScenarioId) return;
@@ -91,9 +86,7 @@ const createDefaultStrategy = async () => {
             enabled: true,
             start_date: new Date().toISOString().split('T')[0]
         };
-        await api.createStrategy(store.activeScenarioId, payload);
-        await loadStrategies();
-        store.runBaseline();
+        await store.saveEntity('strategy', 'new', payload, "Created Decumulation Strategy");
     } catch (e) { alert("Failed to create strategy: " + e.message) }
 }
 
@@ -105,28 +98,23 @@ const openStrategyEdit = (s) => {
 const saveStrategy = async () => {
     if (!store.activeScenarioId || !editingStrategy.value) return;
     try {
-        await api.updateStrategy(store.activeScenarioId, editingStrategy.value.id, strategyForm.value);
+        await store.saveEntity('strategy', editingStrategy.value.id, strategyForm.value, `Updated Strategy: ${strategyForm.value.name}`);
         editingStrategy.value = null;
-        await loadStrategies();
-        store.runBaseline();
     } catch (e) { alert("Update failed") }
 }
 
 const toggleStrategy = async (s) => {
     try {
-        await api.updateStrategy(store.activeScenarioId, s.id, { ...s, enabled: !s.enabled });
-        await loadStrategies();
-        store.runBaseline();
+        const desc = s.enabled ? `Disabled ${s.name}` : `Enabled ${s.name}`;
+        await store.saveEntity('strategy', s.id, { ...s, enabled: !s.enabled }, desc);
     } catch (e) { console.error(e) }
 }
 
 const deleteStrategy = async () => {
-    if (!confirm("Delete this strategy configuration?")) return;
+    if (!editingStrategy.value) return;
     try {
-        await api.deleteStrategy(store.activeScenarioId, editingStrategy.value.id);
+        await store.deleteEntity('strategy', editingStrategy.value.id);
         editingStrategy.value = null;
-        await loadStrategies();
-        store.runBaseline();
     } catch (e) { alert("Delete failed") }
 }
 </script>
@@ -183,12 +171,9 @@ const deleteStrategy = async () => {
                         Strategies to automatically sell assets if Cash runs out.
                     </p>
                 </div>
-                <button v-if="strategies.length === 0" @click="createDefaultStrategy" class="text-sm text-blue-600 hover:underline font-medium">
-                    + Enable Decumulation
-                </button>
             </div>
 
-            <div v-if="strategies.length > 0" class="space-y-2">
+            <div class="space-y-2">
                 <div v-for="s in strategies" :key="s.id" class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 group">
                     <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
                         <Briefcase class="w-5 h-5" />
@@ -218,9 +203,28 @@ const deleteStrategy = async () => {
                         </button>
                     </div>
                 </div>
-            </div>
-            <div v-else class="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-sm text-slate-400">
-                No safety net strategies active.
+
+                <div v-if="strategies.length === 0" class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 opacity-75">
+                    <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0 grayscale">
+                        <Briefcase class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-semibold text-slate-500">Retirement Drawdown</h3>
+                        <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5 font-mono">
+                            <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">Standard</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Hierarchy: GIA (Taxed) &rarr; ISA (Tax Free) &rarr; Pension (Taxed)</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                         <div class="flex items-center gap-2 mr-2">
+                            <button @click="createDefaultStrategy" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" role="switch" aria-checked="false">
+                                <span aria-hidden="true" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0" />
+                            </button>
+                            <span class="text-sm font-medium text-slate-500">Off</span>
+                        </div>
+                        <div class="w-8"></div>
+                    </div>
+                </div>
             </div>
         </div>
         

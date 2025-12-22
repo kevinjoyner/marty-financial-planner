@@ -104,7 +104,11 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      if (scenario.value && id !== 'new') { 
+      
+      // HISTORY SNAPSHOT
+      // We snapshot BEFORE the change.
+      // This allows 'Restoring' to the state prior to this save.
+      if (scenario.value) { 
           history.value.unshift({
               timestamp: new Date(),
               description: description,
@@ -131,7 +135,6 @@ export const useSimulationStore = defineStore('simulation', () => {
           }
           
           if (type === 'income') {
-             // Safe conversion for optional income fields
              if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
              if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
              if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
@@ -157,6 +160,16 @@ export const useSimulationStore = defineStore('simulation', () => {
   async function deleteEntity(type, id) {
       if (!confirm("Are you sure you want to delete this?")) return false;
       isInternalLoading.value = true;
+      
+      // HISTORY SNAPSHOT FOR DELETION
+      if (scenario.value) { 
+          history.value.unshift({
+              timestamp: new Date(),
+              description: `Deleted ${type}`,
+              scenarioSnapshot: JSON.parse(JSON.stringify(scenario.value))
+          });
+      }
+
       try {
           let url = '';
           if (type === 'account') url = `/api/accounts/${id}`;
