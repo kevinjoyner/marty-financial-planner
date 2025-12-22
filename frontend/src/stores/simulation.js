@@ -64,11 +64,8 @@ export const useSimulationStore = defineStore('simulation', () => {
   // --- CORE PROJECTION FUNCTIONS ---
 
   async function runBaseline() {
-      // 1. Fetch the 'clean' projection from the server
       const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
       baselineData.value = res;
-      
-      // 2. If we have local overrides, re-apply them on top
       if (Object.keys(overrides.value).length === 0) {
           simulationData.value = res;
       } else {
@@ -77,12 +74,10 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   async function runSimulation() {
-    // If no overrides, just use baseline
     if (Object.keys(overrides.value).length === 0) {
         if (baselineData.value) simulationData.value = baselineData.value;
         return;
     }
-    
     const apiOverrides = getApiOverrides();
     try {
         const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, apiOverrides);
@@ -112,7 +107,6 @@ export const useSimulationStore = defineStore('simulation', () => {
           const payload = { ...data };
           if (id === 'new') payload.scenario_id = activeScenarioId.value;
 
-          // Conversions (Pence/Float)
           if (payload.value !== undefined) payload.value = Math.round(payload.value * 100);
           if (payload.net_value !== undefined) payload.net_value = Math.round(payload.net_value * 100);
           if (payload.starting_balance !== undefined) payload.starting_balance = Math.round(payload.starting_balance * 100);
@@ -126,7 +120,6 @@ export const useSimulationStore = defineStore('simulation', () => {
               }
           }
 
-          // Dispatch to API
           if (type === 'account') id === 'new' ? await api.createAccount(payload) : await api.updateAccount(id, payload);
           else if (type === 'income') id === 'new' ? await api.createIncome(payload) : await api.updateIncome(id, payload);
           else if (type === 'cost') id === 'new' ? await api.createCost(payload) : await api.updateCost(id, payload);
@@ -135,6 +128,7 @@ export const useSimulationStore = defineStore('simulation', () => {
           else if (type === 'owner') id === 'new' ? await api.createOwner(payload) : await api.updateOwner(id, payload);
           else if (type === 'tax_limit') id === 'new' ? await api.createTaxLimit(activeScenarioId.value, payload) : await api.updateTaxLimit(id, payload);
           else if (type === 'rule') id === 'new' ? await api.createRule(payload) : await api.updateRule(id, payload);
+          else if (type === 'strategy') id === 'new' ? await api.createStrategy(activeScenarioId.value, payload) : await api.updateStrategy(activeScenarioId.value, id, payload);
 
           await loadScenario();
           await runBaseline(); 
@@ -156,6 +150,7 @@ export const useSimulationStore = defineStore('simulation', () => {
           else if (type === 'owner') url = `/api/owners/${id}`;
           else if (type === 'tax_limit') url = `/api/tax_limits/${id}`;
           else if (type === 'rule') url = `/api/automation_rules/${id}`;
+          else if (type === 'strategy') url = `/api/scenarios/${activeScenarioId.value}/strategies/${id}`;
           
           await api.deleteResource(url);
           
@@ -243,7 +238,6 @@ export const useSimulationStore = defineStore('simulation', () => {
       }
   })
 
-  // EXPORT EVERYTHING EXPLICITLY
   return {
     activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
     loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides,

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import draggable from 'vuedraggable'
-import { Workflow, GripVertical, ArrowRight, Plus, Pencil, FileText, Home, ShieldCheck, Power, Briefcase } from 'lucide-vue-next'
+import { Workflow, GripVertical, ArrowRight, Plus, Pencil, FileText, Home, ShieldCheck, Briefcase } from 'lucide-vue-next'
 import { useSimulationStore } from '../stores/simulation'
 import { api } from '../services/api'
 import Drawer from '../components/Drawer.vue'
@@ -12,14 +12,11 @@ import MortgageAnalysis from '../components/MortgageAnalysis.vue'
 import { formatCurrency } from '../utils/format'
 
 const store = useSimulationStore()
-// Automation Rules State
 const editingItem = ref(null)
 const showAudit = ref(false)
 const showMortgage = ref(false)
 const form = ref({})
 const localRules = ref([])
-
-// Decumulation State
 const strategies = ref([])
 const editingStrategy = ref(null)
 const strategyForm = ref({})
@@ -42,7 +39,6 @@ watch(() => store.scenario, (newScenario) => {
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
 const getAccountName = (id) => { const acc = accountOptions.value.find(a => a.id === id); return acc ? acc.name : '?' }
 
-// --- Standard Rules Logic ---
 const openEdit = (rule) => { 
     editingItem.value = rule; 
     form.value = { 
@@ -79,7 +75,6 @@ const remove = async () => {
     if (success) editingItem.value = null;
 }
 
-// --- Decumulation Logic ---
 const loadStrategies = async () => {
     if (!store.activeScenarioId) return;
     try {
@@ -98,7 +93,7 @@ const createDefaultStrategy = async () => {
         };
         await api.createStrategy(store.activeScenarioId, payload);
         await loadStrategies();
-        store.runBaseline(); // REFRESH DATA
+        store.runBaseline();
     } catch (e) { alert("Failed to create strategy: " + e.message) }
 }
 
@@ -113,7 +108,7 @@ const saveStrategy = async () => {
         await api.updateStrategy(store.activeScenarioId, editingStrategy.value.id, strategyForm.value);
         editingStrategy.value = null;
         await loadStrategies();
-        store.runBaseline(); // REFRESH DATA
+        store.runBaseline();
     } catch (e) { alert("Update failed") }
 }
 
@@ -121,7 +116,7 @@ const toggleStrategy = async (s) => {
     try {
         await api.updateStrategy(store.activeScenarioId, s.id, { ...s, enabled: !s.enabled });
         await loadStrategies();
-        store.runBaseline(); // REFRESH DATA
+        store.runBaseline();
     } catch (e) { console.error(e) }
 }
 
@@ -131,7 +126,7 @@ const deleteStrategy = async () => {
         await api.deleteStrategy(store.activeScenarioId, editingStrategy.value.id);
         editingStrategy.value = null;
         await loadStrategies();
-        store.runBaseline(); // REFRESH DATA
+        store.runBaseline();
     } catch (e) { alert("Delete failed") }
 }
 </script>
@@ -199,7 +194,10 @@ const deleteStrategy = async () => {
                         <Briefcase class="w-5 h-5" />
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-slate-900">{{ s.name }}</h3>
+                        <div class="flex items-center gap-2">
+                             <h3 class="text-sm font-semibold text-slate-900">{{ s.name }}</h3>
+                             <PinToggle :item="{ id: `strat-${s.id}-enabled`, realId: s.id, type: 'strategy', field: 'enabled', label: `${s.name} Active`, value: s.enabled, inputType: 'boolean' }" />
+                        </div>
                         <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5 font-mono">
                             <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{{ s.strategy_type }}</span>
                             <span v-if="s.start_date">From: {{ s.start_date }}</span>
@@ -207,11 +205,14 @@ const deleteStrategy = async () => {
                         </div>
                         <p class="text-xs text-slate-400 mt-1">Hierarchy: GIA (Taxed) &rarr; ISA (Tax Free) &rarr; Pension (Taxed)</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <button @click="toggleStrategy(s)" :title="s.enabled ? 'Disable' : 'Enable'"
-                            :class="`p-2 rounded-md transition-colors ${s.enabled ? 'text-emerald-600 bg-emerald-50' : 'text-slate-300 hover:text-emerald-600 hover:bg-slate-50'}`">
-                            <Power class="w-4 h-4" />
-                        </button>
+                    <div class="flex items-center gap-4">
+                         <div class="flex items-center gap-2 mr-2">
+                            <button @click="toggleStrategy(s)" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" :class="s.enabled ? 'bg-indigo-600' : 'bg-slate-200'" role="switch" :aria-checked="s.enabled">
+                                <span aria-hidden="true" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="s.enabled ? 'translate-x-5' : 'translate-x-0'" />
+                            </button>
+                            <span class="text-sm font-medium text-slate-700">{{ s.enabled ? 'On' : 'Off' }}</span>
+                        </div>
+                        
                         <button @click="openStrategyEdit(s)" class="p-2 text-slate-300 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-all">
                             <Pencil class="w-4 h-4" />
                         </button>
@@ -273,11 +274,11 @@ const deleteStrategy = async () => {
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                        <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Start Date</label><PinToggle :item="{ id: `strat-${editingStrategy.id}-start`, realId: editingStrategy.id, type: 'strategy', field: 'start_date', label: `${editingStrategy.name} Start`, value: editingStrategy.start_date, inputType: 'date' }" /></div>
                         <input type="date" v-model="strategyForm.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                        <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">End Date</label><PinToggle :item="{ id: `strat-${editingStrategy.id}-end`, realId: editingStrategy.id, type: 'strategy', field: 'end_date', label: `${editingStrategy.name} End`, value: editingStrategy.end_date, inputType: 'date' }" /></div>
                         <input type="date" v-model="strategyForm.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                     </div>
                 </div>
