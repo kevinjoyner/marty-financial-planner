@@ -149,7 +149,6 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function reorderRules(orderedIds) {
       isInternalLoading.value = true;
-      // History Snapshot for Reorder
       if (scenario.value) {
           history.value.unshift({
               timestamp: new Date(),
@@ -269,8 +268,18 @@ export const useSimulationStore = defineStore('simulation', () => {
       if (!scenario.value) return { liquid: [], illiquid: [], liabilities: [], unvested: [] };
       const accs = scenario.value.accounts;
       return {
-          liquid: accs.filter(a => a.account_type !== 'RSU Grant' && a.account_type !== 'Mortgage' && a.account_type !== 'Loan' && a.account_type !== 'Property' && (!a.tax_wrapper || a.tax_wrapper === 'None' || a.tax_wrapper === 'ISA' || a.tax_wrapper === 'GIA')),
-          illiquid: accs.filter(a => (a.tax_wrapper === 'Pension' || a.tax_wrapper === 'LISA' || a.account_type === 'Property') && a.account_type !== 'RSU Grant'),
+          liquid: accs.filter(a => 
+              a.account_type !== 'RSU Grant' && 
+              a.account_type !== 'Mortgage' && 
+              a.account_type !== 'Loan' && 
+              a.account_type !== 'Property' && 
+              a.account_type !== 'Main Residence' && 
+              (!a.tax_wrapper || a.tax_wrapper === 'None' || a.tax_wrapper === 'ISA' || a.tax_wrapper === 'GIA')
+          ),
+          illiquid: accs.filter(a => 
+              (a.tax_wrapper === 'Pension' || a.tax_wrapper === 'LISA' || a.account_type === 'Property' || a.account_type === 'Main Residence') && 
+              a.account_type !== 'RSU Grant'
+          ),
           liabilities: accs.filter(a => a.account_type === 'Mortgage' || a.account_type === 'Loan'),
           unvested: accs.filter(a => a.account_type === 'RSU Grant')
       }
