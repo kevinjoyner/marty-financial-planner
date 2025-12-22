@@ -45,4 +45,5 @@ $EXEC_CMD python3 seed_frontend_data.py
 
 echo "✅ Starting Application..."
 # Execute the final process as appuser (replacing PID 1)
+python seed_frontend_data.py
 exec gosu appuser uvicorn app.main:app --host 0.0.0.0 --port 8000
