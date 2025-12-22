@@ -2,7 +2,7 @@
 import { onMounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSimulationStore } from '../stores/simulation'
-import { Landmark, TrendingUp, PiggyBank, Home, Pencil, Plus, Users, UserPlus, Lock } from 'lucide-vue-next'
+import { Landmark, Home, Pencil, Plus, Users, UserPlus, Lock, Gift, Trash2 } from 'lucide-vue-next'
 import PinToggle from '../components/PinToggle.vue'
 import Drawer from '../components/Drawer.vue'
 import { formatCurrency } from '../utils/format'
@@ -11,13 +11,13 @@ const store = useSimulationStore()
 const router = useRouter()
 const editingAccount = ref(null)
 const form = ref({}) 
+const vestingSchedule = ref([]) // Local state for the JSON schedule
 
 onMounted(() => { if (!store.scenario) store.init() })
 
 const owners = computed(() => store.scenario?.owners || [])
 const hasOwners = computed(() => owners.value.length > 0)
 
-// LOGIC: Joint Accounts cannot have Tax Wrappers
 const isJointAccount = computed(() => form.value.owner_ids && form.value.owner_ids.length > 1)
 
 watch(() => form.value.owner_ids, (newIds) => {
@@ -47,11 +47,20 @@ const formatPounds = (val) => formatCurrency(val)
 const openEdit = (acc) => {
     editingAccount.value = acc
     const currentOwnerIds = acc.owners ? acc.owners.map(o => o.id) : []
+    
+    // Parse Vesting Schedule (JSON or null)
+    let vs = [];
+    if (acc.vesting_schedule) {
+        vs = Array.isArray(acc.vesting_schedule) ? acc.vesting_schedule : JSON.parse(acc.vesting_schedule);
+    }
+    vestingSchedule.value = vs;
+
     form.value = { 
         ...acc, 
-        starting_balance: acc.starting_balance / 100, 
+        starting_balance: acc.starting_balance / 100, // Units
         original_loan_amount: acc.original_loan_amount ? acc.original_loan_amount / 100 : null,
-        owner_ids: currentOwnerIds 
+        owner_ids: currentOwnerIds,
+        unit_price: acc.unit_price ? acc.unit_price / 100 : 0
     }
 }
 
@@ -64,17 +73,34 @@ const openCreate = () => {
         starting_balance: 0, 
         interest_rate: 0, 
         currency: 'GBP',
-        owner_ids: []
+        owner_ids: [],
+        grant_date: new Date().toISOString().split('T')[0],
+        unit_price: 0
     }
     if (owners.value.length === 1) {
         newAcc.owner_ids = [owners.value[0].id]
     }
+    vestingSchedule.value = [{ year: 1, percent: 25 }, { year: 2, percent: 25 }, { year: 3, percent: 25 }, { year: 4, percent: 25 }];
     editingAccount.value = newAcc
     form.value = { ...newAcc }
 }
 
+const addTranche = () => {
+    const nextYear = vestingSchedule.value.length + 1;
+    vestingSchedule.value.push({ year: nextYear, percent: 0 });
+}
+
+const removeTranche = (index) => {
+    vestingSchedule.value.splice(index, 1);
+}
+
 const save = async () => {
     const payload = { ...form.value }
+    if (payload.account_type === 'RSU Grant') {
+        payload.vesting_schedule = vestingSchedule.value; // Pass array directly, backend handles JSON
+        if (payload.unit_price) payload.unit_price = Math.round(payload.unit_price * 100);
+    }
+    
     await store.saveEntity('account', editingAccount.value.id, payload, `Saved ${form.value.name}`)
     editingAccount.value = null 
 }
@@ -133,6 +159,7 @@ const goToPeople = () => router.push('/tax')
                     </table>
                 </div>
             </div>
+
             <div>
                 <h3 class="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-3 px-1">Assets</h3>
                 <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -145,6 +172,25 @@ const goToPeople = () => router.push('/tax')
                                 <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><Landmark class="w-4 h-4" /></div><div class="font-medium text-slate-900">{{ acc.name }}</div></div></td>
                                 <td class="px-6 py-4 text-slate-500">{{ acc.account_type }} <span v-if="acc.tax_wrapper && acc.tax_wrapper !== 'None'" class="ml-1 text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{{ acc.tax_wrapper }}</span></td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-700">{{ formatPounds(acc.starting_balance) }}</td>
+                                <td class="px-6 py-4 text-center"><button @click="openEdit(acc)" class="p-1.5 text-slate-300 hover:text-primary hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-if="accountsByType.rsu && accountsByType.rsu.length > 0">
+                <h3 class="text-sm font-bold text-[#635bff] uppercase tracking-wider mb-3 px-1">Stock Grants (Unvested)</h3>
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-500">
+                            <tr><th class="px-6 py-3 font-medium">Grant Name</th><th class="px-6 py-3 font-medium">Currency</th><th class="px-6 py-3 font-medium text-right">Units</th><th class="px-6 py-3 font-medium text-center w-16"></th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="acc in accountsByType.rsu" :key="acc.id" class="group hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-indigo-100 text-[#635bff] flex items-center justify-center"><Gift class="w-4 h-4" /></div><div class="font-medium text-slate-900">{{ acc.name }}</div></div></td>
+                                <td class="px-6 py-4 text-slate-500 font-mono">{{ acc.currency }}</td>
+                                <td class="px-6 py-4 text-right font-bold text-slate-700">{{ (acc.starting_balance / 100).toLocaleString() }}</td>
                                 <td class="px-6 py-4 text-center"><button @click="openEdit(acc)" class="p-1.5 text-slate-300 hover:text-primary hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button></td>
                             </tr>
                         </tbody>
@@ -180,9 +226,10 @@ const goToPeople = () => router.push('/tax')
                             <option value="Main Residence">Main Residence</option>
                             <option value="Property">Property</option>
                             <option value="Mortgage">Mortgage / Loan</option>
+                            <option value="RSU Grant">RSU Grant</option>
                         </select>
                     </div>
-                    <div>
+                    <div v-if="form.account_type !== 'RSU Grant'">
                         <label class="block text-sm font-medium text-slate-700 mb-1">Tax Wrapper</label>
                         <div class="relative">
                             <select v-model="form.tax_wrapper" :disabled="isJointAccount" :class="['w-full border rounded-md px-3 py-2 text-sm', isJointAccount ? 'bg-slate-100 text-slate-400 border-slate-200' : 'border-slate-300 bg-white']">
@@ -192,9 +239,53 @@ const goToPeople = () => router.push('/tax')
                             <Lock v-if="isJointAccount" class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3" />
                         </div>
                     </div>
+                    <div v-else>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Currency</label>
+                        <select v-model="form.currency" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                            <option value="GBP">GBP (£)</option>
+                            <option value="USD">USD ($)</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div v-if="form.account_type === 'Mortgage'" class="space-y-6 pt-2">
+                <div v-if="form.account_type === 'RSU Grant'" class="space-y-6 pt-2">
+                    <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-100 space-y-4">
+                        <h4 class="text-xs font-bold text-indigo-500 uppercase tracking-wide">Grant Details</h4>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Grant Date</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-grant`, realId: editingAccount.id, type: 'account', field: 'grant_date', label: `${editingAccount.name} Grant`, value: editingAccount.grant_date, inputType: 'date' }" /></div><input type="date" v-model="form.grant_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                            <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Original Units</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-units`, realId: editingAccount.id, type: 'account', field: 'starting_balance', label: `${editingAccount.name} Units`, value: editingAccount.starting_balance / 100, format: 'number' }" /></div><input type="number" v-model="form.starting_balance" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm font-mono"></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Grant Price</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-price`, realId: editingAccount.id, type: 'account', field: 'unit_price', label: `${editingAccount.name} Price`, value: editingAccount.unit_price / 100, format: 'currency' }" /></div><div class="relative"><span class="absolute left-3 top-2 text-slate-400">{{ form.currency === 'USD' ? '$' : '£' }}</span><input type="number" v-model="form.unit_price" class="w-full border border-slate-300 rounded-md pl-7 pr-3 py-2 text-sm"></div></div>
+                            <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Growth Rate (%)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-rate`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Growth`, value: editingAccount.interest_rate, format: 'percent' }" /></div><input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Payout To Account (After Tax)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-target`, realId: editingAccount.id, type: 'account', field: 'rsu_target_account_id', label: `${editingAccount.name} Target`, value: editingAccount.rsu_target_account_id, inputType: 'select', options: accountOptions }" /></div>
+                            <select v-model="form.rsu_target_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option :value="null">-- None --</option><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-sm font-medium text-slate-700">Vesting Schedule</label>
+                            <button type="button" @click="addTranche" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"><Plus class="w-3 h-3" /> Add Year</button>
+                        </div>
+                        <div class="space-y-2">
+                            <div v-for="(tranche, idx) in vestingSchedule" :key="idx" class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500 w-12">Year {{ tranche.year }}</span>
+                                <input type="number" v-model="tranche.percent" class="w-20 border border-slate-300 rounded px-2 py-1 text-sm text-right" placeholder="25">
+                                <span class="text-slate-400 text-sm">%</span>
+                                <button type="button" @click="removeTranche(idx)" class="ml-auto text-slate-300 hover:text-red-500"><Trash2 class="w-4 h-4" /></button>
+                            </div>
+                            <div v-if="vestingSchedule.length === 0" class="text-center py-4 text-xs text-slate-400 italic bg-slate-50 rounded border border-dashed border-slate-200">No vesting schedule defined.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="form.account_type === 'Mortgage'" class="space-y-6 pt-2">
                     <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Loan Details</h4>
                         <div class="grid grid-cols-2 gap-4">
                             <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Interest (%)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-rate`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Rate`, value: editingAccount.interest_rate, format: 'percent' }" /></div><input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
