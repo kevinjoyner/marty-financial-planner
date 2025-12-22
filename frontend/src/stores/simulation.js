@@ -4,11 +4,16 @@ import { api } from '../services/api'
 
 export const useSimulationStore = defineStore('simulation', () => {
   
+  // Persistence: Active Scenario
   const savedId = localStorage.getItem('marty_active_scenario_id')
   const activeScenarioId = ref(savedId ? parseInt(savedId) : null)
+  
+  // Persistence: Simulation Horizon (Months)
+  const savedMonths = localStorage.getItem('marty_simulation_months')
+  const simulationMonths = ref(savedMonths ? parseInt(savedMonths) : 120)
+
   const isInternalLoading = ref(false)
   const scenario = ref(null)
-  const simulationMonths = ref(120)
   
   const pinnedItems = ref([]) 
   const overrides = ref({})
@@ -17,8 +22,13 @@ export const useSimulationStore = defineStore('simulation', () => {
   const simulationData = ref(null)
   const history = ref([])
 
+  // Watchers for Persistence
   watch(activeScenarioId, (newVal) => {
       if (newVal) localStorage.setItem('marty_active_scenario_id', newVal)
+  })
+
+  watch(simulationMonths, (newVal) => {
+      if (newVal) localStorage.setItem('marty_simulation_months', newVal)
   })
 
   async function loadActiveScenario(id) {
@@ -118,6 +128,13 @@ export const useSimulationStore = defineStore('simulation', () => {
               if (payload.rule_type !== 'mortgage_smart') {
                   payload.transfer_value = Math.round(payload.transfer_value * 100);
               }
+          }
+          
+          if (type === 'income') {
+             // Safe conversion for optional income fields
+             if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
+             if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
+             if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
           }
 
           if (type === 'account') id === 'new' ? await api.createAccount(payload) : await api.updateAccount(id, payload);
