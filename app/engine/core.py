@@ -43,6 +43,9 @@ def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schema
         elif override.type == 'rule':
             rule = next((r for r in scenario.automation_rules if r.id == override.id), None)
             if rule and hasattr(rule, override.field): setattr(rule, override.field, override.value)
+        elif override.type == 'strategy':
+            strat = next((s for s in scenario.decumulation_strategies if s.id == override.id), None)
+            if strat and hasattr(strat, override.field): setattr(strat, override.field, override.value)
 
 def run_projection(db: Session, scenario: models.Scenario, months: int) -> schemas.Projection:
     all_accounts = scenario.accounts
@@ -78,7 +81,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int) -> schem
         process_rsu_vesting(scenario, context)
         process_standard_mortgage_payments(scenario, context)
         process_rules(scenario, context)
-        process_decumulation(scenario, context) # <--- NEW PROCESSOR
+        process_decumulation(scenario, context)
         process_interest(scenario, context)
         # ----------------------
         

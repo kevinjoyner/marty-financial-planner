@@ -45,6 +45,7 @@ const openCreate = () => {
         net_value: 2000,
         cadence: 'monthly',
         start_date: new Date().toISOString().split('T')[0],
+        end_date: null,
         is_pre_tax: false,
         salary_sacrifice_value: 0,
         taxable_benefit_value: 0,
@@ -55,10 +56,7 @@ const openCreate = () => {
 }
 
 const save = async () => {
-    // Manually handle Pence conversion for specific income fields
-    // The store handles 'net_value' automatically, but we must handle the others here to be safe.
     const payload = { ...form.value };
-    
     if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
     if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
     if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
@@ -111,6 +109,8 @@ const remove = async () => {
                                             <div class="font-medium text-slate-900 truncate" :title="inc.name">{{ inc.name }}</div>
                                             <div class="text-xs text-slate-400 flex items-center gap-1">
                                                 <Calendar class="w-3 h-3" /> {{ inc.start_date }}
+                                                <span v-if="inc.end_date" class="text-slate-300 mx-1">→</span>
+                                                <span v-if="inc.end_date">{{ inc.end_date }}</span>
                                                 <span v-if="inc.is_pre_tax" class="ml-2 bg-slate-100 px-1 rounded text-slate-500 font-mono text-[10px]">GROSS</span>
                                             </div>
                                         </div>
@@ -209,6 +209,11 @@ const remove = async () => {
                     </div>
                 </div>
                 
+                <div>
+                    <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">End Date (Optional)</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-end`, realId: editingItem.id, type: 'income', field: 'end_date', label: `${editingItem.name} End`, value: editingItem.end_date, inputType: 'date' }" /></div>
+                    <input type="date" v-model="form.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                </div>
+
                 <div>
                      <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Deposit Into</label><PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `inc-${editingItem.id}-dep`, realId: editingItem.id, type: 'income', field: 'account_id', label: `${editingItem.name} Dep`, value: editingItem.account_id, inputType: 'select', options: accountOptions }" /></div>
                      <select v-model="form.account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
