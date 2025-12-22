@@ -62,7 +62,6 @@ export const useSimulationStore = defineStore('simulation', () => {
           console.warn(`Failed to load scenario ${activeScenarioId.value}. Resetting.`, e);
           activeScenarioId.value = null;
           scenario.value = null;
-          // Optional: Try to recover by loading list
           const list = await api.getScenarios();
           if (list.length > 0) {
               activeScenarioId.value = list[0].id;
@@ -148,6 +147,11 @@ export const useSimulationStore = defineStore('simulation', () => {
              if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
              if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
           }
+          
+          // RSU Price
+          if (type === 'account' && payload.account_type === 'RSU Grant' && payload.unit_price) {
+             payload.unit_price = Math.round(payload.unit_price * 100);
+          }
 
           if (type === 'account') id === 'new' ? await api.createAccount(payload) : await api.updateAccount(id, payload);
           else if (type === 'income') id === 'new' ? await api.createIncome(payload) : await api.updateIncome(id, payload);
@@ -187,7 +191,6 @@ export const useSimulationStore = defineStore('simulation', () => {
   async function deleteEntity(type, id) {
       if (!confirm("Are you sure you want to delete this?")) return false;
       isInternalLoading.value = true;
-      
       if (scenario.value) { 
           history.value.unshift({
               timestamp: new Date(),
@@ -195,7 +198,6 @@ export const useSimulationStore = defineStore('simulation', () => {
               scenarioSnapshot: JSON.parse(JSON.stringify(scenario.value))
           });
       }
-
       try {
           let url = '';
           if (type === 'account') url = `/api/accounts/${id}`;
@@ -214,7 +216,6 @@ export const useSimulationStore = defineStore('simulation', () => {
               const item = pinnedItems.value.find(p => p.realId === id && p.type === type);
               unpinItem(item.id);
           }
-
           await loadScenario();
           await runBaseline(); 
           return true;

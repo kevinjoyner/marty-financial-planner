@@ -1,8 +1,8 @@
-"""Initial Schema Phase 6 Corrected
+"""reset_init
 
-Revision ID: 7cee3aa339ae
+Revision ID: f9e5bef97330
 Revises: 
-Create Date: 2025-11-30 15:03:30.673916
+Create Date: 2025-12-22 17:53:36.635580
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '7cee3aa339ae'
+revision: str = 'f9e5bef97330'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -23,10 +23,10 @@ def upgrade() -> None:
     op.create_table('scenarios',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
     sa.Column('description', sa.String(), nullable=True),
     sa.Column('start_date', sa.Date(), nullable=True),
     sa.Column('gbp_to_usd_rate', sa.Float(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('scenarios', schema=None) as batch_op:
@@ -35,40 +35,70 @@ def upgrade() -> None:
 
     op.create_table('accounts',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('scenario_id', sa.Integer(), nullable=True),
     sa.Column('name', sa.String(), nullable=True),
     sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('account_type', sa.Enum('Cash', 'Investment', 'Property', 'Mortgage', 'Loan', 'RSU Grant', name='accounttype'), nullable=True),
-    sa.Column('tax_wrapper', sa.Enum('ISA', 'Lifetime ISA', 'Pension', 'Junior ISA', 'None', name='taxwrapper'), nullable=True),
+    sa.Column('account_type', sa.String(), nullable=True),
+    sa.Column('tax_wrapper', sa.String(), nullable=True),
+    sa.Column('currency', sa.String(), nullable=True),
     sa.Column('starting_balance', sa.Integer(), nullable=True),
+    sa.Column('min_balance', sa.Integer(), nullable=True),
     sa.Column('interest_rate', sa.Float(), nullable=True),
+    sa.Column('book_cost', sa.Integer(), nullable=True),
     sa.Column('original_loan_amount', sa.Integer(), nullable=True),
-    sa.Column('amortisation_period_years', sa.Integer(), nullable=True),
     sa.Column('mortgage_start_date', sa.Date(), nullable=True),
-    sa.Column('fixed_rate_period_years', sa.Integer(), nullable=True),
+    sa.Column('amortisation_period_years', sa.Integer(), nullable=True),
     sa.Column('fixed_interest_rate', sa.Float(), nullable=True),
-    sa.Column('rsu_target_account_id', sa.Integer(), nullable=True),
-    sa.Column('vesting_schedule', sa.JSON(), nullable=True),
-    sa.Column('grant_date', sa.Date(), nullable=True),
-    sa.Column('unit_price', sa.Integer(), nullable=True),
-    sa.Column('is_primary_account', sa.Boolean(), nullable=False),
-    sa.Column('currency', sa.Enum('GBP', 'USD', name='currency'), nullable=True),
+    sa.Column('fixed_rate_period_years', sa.Integer(), nullable=True),
     sa.Column('payment_from_account_id', sa.Integer(), nullable=True),
-    sa.Column('scenario_id', sa.Integer(), nullable=True),
+    sa.Column('grant_date', sa.Date(), nullable=True),
+    sa.Column('vesting_schedule', sa.JSON(), nullable=True),
+    sa.Column('vesting_cadence', sa.String(), nullable=True),
+    sa.Column('unit_price', sa.Integer(), nullable=True),
+    sa.Column('rsu_target_account_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['payment_from_account_id'], ['accounts.id'], ),
     sa.ForeignKeyConstraint(['rsu_target_account_id'], ['accounts.id'], ),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('accounts', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_accounts_id'), ['id'], unique=False)
         batch_op.create_index(batch_op.f('ix_accounts_name'), ['name'], unique=False)
 
+    op.create_table('chart_annotations',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('scenario_id', sa.Integer(), nullable=True),
+    sa.Column('date', sa.Date(), nullable=True),
+    sa.Column('label', sa.String(), nullable=True),
+    sa.Column('annotation_type', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('chart_annotations', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_chart_annotations_id'), ['id'], unique=False)
+
+    op.create_table('decumulation_strategies',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('scenario_id', sa.Integer(), nullable=True),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('strategy_type', sa.String(), nullable=True),
+    sa.Column('start_date', sa.Date(), nullable=True),
+    sa.Column('end_date', sa.Date(), nullable=True),
+    sa.Column('enabled', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('decumulation_strategies', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_decumulation_strategies_id'), ['id'], unique=False)
+
     op.create_table('owners',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('birth_date', sa.Date(), nullable=True),
+    sa.Column('retirement_age', sa.Integer(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('owners', schema=None) as batch_op:
@@ -78,10 +108,10 @@ def upgrade() -> None:
     op.create_table('scenario_history',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
-    sa.Column('timestamp', sa.DateTime(), nullable=True),
     sa.Column('action_description', sa.String(), nullable=True),
     sa.Column('snapshot_data', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.Column('timestamp', sa.Date(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('scenario_history', schema=None) as batch_op:
@@ -90,13 +120,14 @@ def upgrade() -> None:
     op.create_table('tax_limits',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('amount', sa.Integer(), nullable=False),
-    sa.Column('wrappers', sa.JSON(), nullable=False),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('amount', sa.Integer(), nullable=True),
+    sa.Column('wrappers', sa.JSON(), nullable=True),
     sa.Column('account_types', sa.JSON(), nullable=True),
-    sa.Column('start_date', sa.Date(), nullable=False),
+    sa.Column('start_date', sa.Date(), nullable=True),
     sa.Column('end_date', sa.Date(), nullable=True),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.Column('frequency', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('tax_limits', schema=None) as batch_op:
@@ -105,28 +136,27 @@ def upgrade() -> None:
     op.create_table('account_owners',
     sa.Column('account_id', sa.Integer(), nullable=False),
     sa.Column('owner_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], ),
     sa.PrimaryKeyConstraint('account_id', 'owner_id')
     )
     op.create_table('automation_rules',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
     sa.Column('name', sa.String(), nullable=True),
-    sa.Column('priority', sa.Integer(), nullable=False),
-    sa.Column('rule_type', sa.Enum('sweep', 'top_up', 'transfer', 'mortgage_smart', name='ruletype'), nullable=True),
+    sa.Column('rule_type', sa.String(), nullable=True),
     sa.Column('source_account_id', sa.Integer(), nullable=True),
     sa.Column('target_account_id', sa.Integer(), nullable=True),
-    sa.Column('trigger_value', sa.Float(), nullable=True),
-    sa.Column('transfer_value', sa.Float(), nullable=True),
-    sa.Column('transfer_cap', sa.Float(), nullable=True),
+    sa.Column('trigger_value', sa.Integer(), nullable=True),
+    sa.Column('transfer_value', sa.Integer(), nullable=True),
+    sa.Column('transfer_cap', sa.Integer(), nullable=True),
+    sa.Column('cadence', sa.String(), nullable=True),
     sa.Column('start_date', sa.Date(), nullable=True),
     sa.Column('end_date', sa.Date(), nullable=True),
-    sa.Column('cadence', sa.Enum('once', 'monthly', 'quarterly', 'annually', name='cadence'), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['source_account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['target_account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.Column('priority', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
+    sa.ForeignKeyConstraint(['source_account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['target_account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('automation_rules', schema=None) as batch_op:
@@ -134,88 +164,90 @@ def upgrade() -> None:
 
     op.create_table('costs',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('value', sa.Integer(), nullable=True),
-    sa.Column('cadence', sa.Enum('once', 'monthly', 'quarterly', 'annually', name='cadence'), nullable=True),
-    sa.Column('start_date', sa.Date(), nullable=True),
-    sa.Column('end_date', sa.Date(), nullable=True),
-    sa.Column('is_recurring', sa.Boolean(), nullable=True),
-    sa.Column('currency', sa.Enum('GBP', 'USD', name='currency'), nullable=True),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
     sa.Column('account_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('value', sa.Integer(), nullable=True),
+    sa.Column('cadence', sa.String(), nullable=True),
+    sa.Column('start_date', sa.Date(), nullable=True),
+    sa.Column('end_date', sa.Date(), nullable=True),
+    sa.Column('currency', sa.String(), nullable=True),
+    sa.Column('growth_rate', sa.Float(), nullable=True),
+    sa.Column('is_recurring', sa.Boolean(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('costs', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_costs_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_costs_name'), ['name'], unique=False)
 
     op.create_table('financial_events',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('value', sa.Integer(), nullable=True),
-    sa.Column('event_date', sa.Date(), nullable=True),
-    sa.Column('currency', sa.Enum('GBP', 'USD', name='currency'), nullable=True),
-    sa.Column('event_type', sa.Enum('income_expense', 'transfer', name='financialeventtype'), nullable=True),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
     sa.Column('from_account_id', sa.Integer(), nullable=True),
     sa.Column('to_account_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('value', sa.Integer(), nullable=True),
+    sa.Column('event_date', sa.Date(), nullable=True),
+    sa.Column('event_type', sa.String(), nullable=True),
+    sa.Column('currency', sa.String(), nullable=True),
+    sa.Column('show_on_chart', sa.Boolean(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
+    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('financial_events', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_financial_events_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_financial_events_name'), ['name'], unique=False)
 
     op.create_table('income_sources',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('net_value', sa.Integer(), nullable=True),
-    sa.Column('is_pre_tax', sa.Boolean(), nullable=True),
-    sa.Column('salary_sacrifice_value', sa.Integer(), nullable=True),
-    sa.Column('salary_sacrifice_account_id', sa.Integer(), nullable=True),
-    sa.Column('taxable_benefit_value', sa.Integer(), nullable=True),
-    sa.Column('cadence', sa.Enum('once', 'monthly', 'quarterly', 'annually', name='cadence'), nullable=True),
-    sa.Column('start_date', sa.Date(), nullable=True),
-    sa.Column('end_date', sa.Date(), nullable=True),
-    sa.Column('currency', sa.Enum('GBP', 'USD', name='currency'), nullable=True),
     sa.Column('owner_id', sa.Integer(), nullable=True),
     sa.Column('account_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], ondelete='CASCADE'),
+    sa.Column('salary_sacrifice_account_id', sa.Integer(), nullable=True),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('amount', sa.Integer(), nullable=True),
+    sa.Column('net_value', sa.Integer(), nullable=True),
+    sa.Column('cadence', sa.String(), nullable=True),
+    sa.Column('start_date', sa.Date(), nullable=True),
+    sa.Column('end_date', sa.Date(), nullable=True),
+    sa.Column('currency', sa.String(), nullable=True),
+    sa.Column('growth_rate', sa.Float(), nullable=True),
+    sa.Column('is_pre_tax', sa.Boolean(), nullable=True),
+    sa.Column('salary_sacrifice_value', sa.Integer(), nullable=True),
+    sa.Column('taxable_benefit_value', sa.Integer(), nullable=True),
+    sa.Column('employer_pension_contribution', sa.Integer(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['owner_id'], ['owners.id'], ),
     sa.ForeignKeyConstraint(['salary_sacrifice_account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('income_sources', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_income_sources_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_income_sources_name'), ['name'], unique=False)
 
     op.create_table('transfers',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=True),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('value', sa.Integer(), nullable=True),
-    sa.Column('cadence', sa.Enum('once', 'monthly', 'quarterly', 'annually', name='cadence'), nullable=True),
-    sa.Column('start_date', sa.Date(), nullable=True),
-    sa.Column('end_date', sa.Date(), nullable=True),
     sa.Column('scenario_id', sa.Integer(), nullable=True),
     sa.Column('from_account_id', sa.Integer(), nullable=True),
     sa.Column('to_account_id', sa.Integer(), nullable=True),
-    sa.Column('currency', sa.Enum('GBP', 'USD', name='currency'), nullable=True),
-    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('value', sa.Integer(), nullable=True),
+    sa.Column('cadence', sa.String(), nullable=True),
+    sa.Column('start_date', sa.Date(), nullable=True),
+    sa.Column('end_date', sa.Date(), nullable=True),
+    sa.Column('currency', sa.String(), nullable=True),
+    sa.Column('show_on_chart', sa.Boolean(), nullable=True),
+    sa.Column('notes', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ),
+    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('transfers', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_transfers_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_transfers_name'), ['name'], unique=False)
 
     # ### end Alembic commands ###
 
@@ -223,22 +255,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     with op.batch_alter_table('transfers', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_transfers_name'))
         batch_op.drop_index(batch_op.f('ix_transfers_id'))
 
     op.drop_table('transfers')
     with op.batch_alter_table('income_sources', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_income_sources_name'))
         batch_op.drop_index(batch_op.f('ix_income_sources_id'))
 
     op.drop_table('income_sources')
     with op.batch_alter_table('financial_events', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_financial_events_name'))
         batch_op.drop_index(batch_op.f('ix_financial_events_id'))
 
     op.drop_table('financial_events')
     with op.batch_alter_table('costs', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_costs_name'))
         batch_op.drop_index(batch_op.f('ix_costs_id'))
 
     op.drop_table('costs')
@@ -260,6 +288,14 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_owners_id'))
 
     op.drop_table('owners')
+    with op.batch_alter_table('decumulation_strategies', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_decumulation_strategies_id'))
+
+    op.drop_table('decumulation_strategies')
+    with op.batch_alter_table('chart_annotations', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_chart_annotations_id'))
+
+    op.drop_table('chart_annotations')
     with op.batch_alter_table('accounts', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_accounts_name'))
         batch_op.drop_index(batch_op.f('ix_accounts_id'))
