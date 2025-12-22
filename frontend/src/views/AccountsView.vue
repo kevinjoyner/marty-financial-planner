@@ -11,7 +11,7 @@ const store = useSimulationStore()
 const router = useRouter()
 const editingAccount = ref(null)
 const form = ref({}) 
-const vestingSchedule = ref([]) // Local state for the JSON schedule
+const vestingSchedule = ref([]) 
 
 onMounted(() => { if (!store.scenario) store.init() })
 
@@ -48,7 +48,6 @@ const openEdit = (acc) => {
     editingAccount.value = acc
     const currentOwnerIds = acc.owners ? acc.owners.map(o => o.id) : []
     
-    // Parse Vesting Schedule (JSON or null)
     let vs = [];
     if (acc.vesting_schedule) {
         vs = Array.isArray(acc.vesting_schedule) ? acc.vesting_schedule : JSON.parse(acc.vesting_schedule);
@@ -57,10 +56,11 @@ const openEdit = (acc) => {
 
     form.value = { 
         ...acc, 
-        starting_balance: acc.starting_balance / 100, // Units
+        starting_balance: acc.starting_balance / 100, 
         original_loan_amount: acc.original_loan_amount ? acc.original_loan_amount / 100 : null,
         owner_ids: currentOwnerIds,
-        unit_price: acc.unit_price ? acc.unit_price / 100 : 0
+        unit_price: acc.unit_price ? acc.unit_price / 100 : 0,
+        vesting_cadence: acc.vesting_cadence || 'monthly'
     }
 }
 
@@ -75,7 +75,8 @@ const openCreate = () => {
         currency: 'GBP',
         owner_ids: [],
         grant_date: new Date().toISOString().split('T')[0],
-        unit_price: 0
+        unit_price: 0,
+        vesting_cadence: 'monthly'
     }
     if (owners.value.length === 1) {
         newAcc.owner_ids = [owners.value[0].id]
@@ -97,7 +98,7 @@ const removeTranche = (index) => {
 const save = async () => {
     const payload = { ...form.value }
     if (payload.account_type === 'RSU Grant') {
-        payload.vesting_schedule = vestingSchedule.value; // Pass array directly, backend handles JSON
+        payload.vesting_schedule = vestingSchedule.value; 
         if (payload.unit_price) payload.unit_price = Math.round(payload.unit_price * 100);
     }
     
@@ -262,15 +263,24 @@ const goToPeople = () => router.push('/tax')
                             <div><div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Growth Rate (%)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-rate`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Growth`, value: editingAccount.interest_rate, format: 'percent' }" /></div><input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></div>
                         </div>
 
-                        <div>
-                            <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Payout To Account (After Tax)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-target`, realId: editingAccount.id, type: 'account', field: 'rsu_target_account_id', label: `${editingAccount.name} Target`, value: editingAccount.rsu_target_account_id, inputType: 'select', options: accountOptions }" /></div>
-                            <select v-model="form.rsu_target_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option :value="null">-- None --</option><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Vesting Cadence</label>
+                                <select v-model="form.vesting_cadence" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1"><label class="block text-sm font-medium text-slate-700">Payout To (After Tax)</label><PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-target`, realId: editingAccount.id, type: 'account', field: 'rsu_target_account_id', label: `${editingAccount.name} Target`, value: editingAccount.rsu_target_account_id, inputType: 'select', options: accountOptions }" /></div>
+                                <select v-model="form.rsu_target_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"><option :value="null">-- None --</option><option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+                            </div>
                         </div>
                     </div>
 
                     <div>
                         <div class="flex justify-between items-center mb-2">
-                            <label class="block text-sm font-medium text-slate-700">Vesting Schedule</label>
+                            <label class="block text-sm font-medium text-slate-700">Vesting Schedule (Annual % - Vests <span class="capitalize font-bold text-indigo-600">{{ form.vesting_cadence }}</span>)</label>
                             <button type="button" @click="addTranche" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"><Plus class="w-3 h-3" /> Add Year</button>
                         </div>
                         <div class="space-y-2">
