@@ -36,6 +36,11 @@ watch(() => store.scenario, (newScenario) => {
     }
 })
 
+const onReorder = async () => {
+    const ids = localRules.value.map(r => r.id);
+    await store.reorderRules(ids);
+}
+
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
 const getAccountName = (id) => { const acc = accountOptions.value.find(a => a.id === id); return acc ? acc.name : '?' }
 
@@ -137,7 +142,7 @@ const deleteStrategy = async () => {
             No transfer rules defined.
         </div>
         <div v-else class="bg-slate-50 border border-slate-200 rounded-xl p-1 mb-8">
-            <draggable v-model="localRules" item-key="id" class="space-y-2" ghost-class="opacity-50">
+            <draggable v-model="localRules" item-key="id" class="space-y-2" ghost-class="opacity-50" @change="onReorder">
                 <template #item="{element}">
                     <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 group cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors">
                         <div class="text-slate-300 group-hover:text-slate-500"><GripVertical class="w-5 h-5" /></div>
