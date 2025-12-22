@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { useSimulationStore } from '../stores/simulation'
-import { GitCommit, Plus, GripVertical, ShieldCheck, Trash2 } from 'lucide-vue-next'
+import { GitCommit, Plus, GripVertical, ShieldCheck } from 'lucide-vue-next'
 import Drawer from '../components/Drawer.vue'
 import PinToggle from '../components/PinToggle.vue'
 import draggable from 'vuedraggable'
@@ -17,7 +17,12 @@ onMounted(() => {
 
 const strategies = computed(() => store.scenario?.decumulation_strategies || [])
 
-// --- Rules Logic ---
+// Treat as singleton for UI purposes
+const currentStrategy = computed(() => {
+    if (strategies.value.length > 0) return strategies.value[0];
+    return null;
+})
+
 const openCreate = () => {
     editingRule.value = { id: 'new', name: 'New Rule', rule_type: 'sweep', trigger_value: 1000, priority: 10 };
     form.value = { ...editingRule.value };
@@ -36,33 +41,31 @@ const deleteRule = async () => {
     editingRule.value = null;
 }
 
-// --- Strategy Logic ---
-const addStrategy = async () => {
-    await store.saveEntity('decumulation_strategy', 'new', {
-        name: "Automated Decumulation",
-        strategy_type: "automated",
-        enabled: true
-    });
-}
-const toggleStrategy = async (s) => {
-    // Optimistic toggle
-    s.enabled = !s.enabled;
-    try {
-        await store.saveEntity('decumulation_strategy', s.id, { ...s, enabled: s.enabled }, "Toggled Strategy", true);
-    } catch(e) { s.enabled = !s.enabled; }
-}
-const removeStrategy = async (id) => {
-    await store.deleteEntity('decumulation_strategy', id);
+// Unified Toggle Logic
+const toggleStrategy = async () => {
+    if (!currentStrategy.value) {
+        // CREATE if doesn't exist
+        await store.saveEntity('decumulation_strategy', 'new', {
+            name: "Automated Decumulation",
+            strategy_type: "automated",
+            enabled: true
+        });
+    } else {
+        // UPDATE if exists
+        const s = currentStrategy.value;
+        // Optimistic toggle handled by store reload usually, but for speed:
+        s.enabled = !s.enabled; 
+        try {
+            await store.saveEntity('decumulation_strategy', s.id, { ...s, enabled: s.enabled }, "Toggled Strategy", true);
+        } catch(e) { s.enabled = !s.enabled; }
+    }
 }
 </script>
 
 <template>
     <div class="flex flex-col h-full max-w-5xl mx-auto w-full pb-24">
         <header class="mb-8 flex justify-between items-end">
-            <div>
-                <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Automation</h1>
-                <p class="text-sm text-slate-500 mt-1">Configure automated money movements.</p>
-            </div>
+            <div><h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Automation</h1><p class="text-sm text-slate-500 mt-1">Configure automated money movements.</p></div>
             <div class="flex gap-2 bg-slate-100 p-1 rounded-lg">
                 <button @click="activeTab='rules'" :class="['px-4 py-1.5 text-sm font-medium rounded-md transition-all', activeTab==='rules' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">Rules</button>
                 <button @click="activeTab='strategies'" :class="['px-4 py-1.5 text-sm font-medium rounded-md transition-all', activeTab==='strategies' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">Strategies</button>
@@ -70,18 +73,12 @@ const removeStrategy = async (id) => {
         </header>
         
         <div v-if="activeTab==='rules' && store.scenario" class="space-y-6">
-            <div class="flex justify-end">
-                <button @click="openCreate" class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"><Plus class="w-4 h-4"/> New Rule</button>
-            </div>
-            
+            <div class="flex justify-end"><button @click="openCreate" class="text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"><Plus class="w-4 h-4"/> New Rule</button></div>
             <draggable v-model="store.scenario.automation_rules" item-key="id" class="space-y-3" handle=".drag-handle">
                 <template #item="{element}">
                     <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4">
                         <div class="drag-handle cursor-move text-slate-300 hover:text-slate-500"><GripVertical class="w-5 h-5" /></div>
-                        <div class="grow">
-                            <h3 class="font-semibold text-slate-900">{{ element.name }}</h3>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wider">{{ element.rule_type }}</div>
-                        </div>
+                        <div class="grow"><h3 class="font-semibold text-slate-900">{{ element.name }}</h3><div class="text-xs text-slate-500 uppercase font-bold tracking-wider">{{ element.rule_type }}</div></div>
                         <button @click="openEdit(element)" class="text-sm text-indigo-600 font-medium hover:underline">Edit</button>
                     </div>
                 </template>
@@ -89,35 +86,39 @@ const removeStrategy = async (id) => {
         </div>
 
         <div v-if="activeTab==='strategies' && store.scenario" class="flex flex-col items-center">
-            <div class="w-full max-w-2xl">
-                <div v-if="strategies.length === 0" class="flex justify-center mt-12">
-                    <button @click="addStrategy" class="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all w-full">
-                        <ShieldCheck class="w-12 h-12 mb-4" />
-                        <span class="font-medium text-lg">Enable Automated Decumulation</span>
-                    </button>
-                </div>
-
-                <div v-for="s in strategies" :key="s.id" class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative overflow-hidden mt-4">
-                     <div class="absolute top-0 left-0 w-1 h-full transition-colors duration-300" :class="s.enabled ? 'bg-indigo-500' : 'bg-slate-300'"></div>
-                     <div class="flex justify-between items-start mb-4 pl-3">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-full flex items-center justify-center" :class="s.enabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'">
+            <div class="w-full max-w-2xl mt-4">
+                
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative overflow-hidden transition-all hover:shadow-md cursor-pointer" @click="toggleStrategy">
+                     <div class="absolute top-0 left-0 w-1 h-full transition-colors duration-300" :class="(currentStrategy && currentStrategy.enabled) ? 'bg-indigo-500' : 'bg-slate-300'"></div>
+                     
+                     <div class="flex justify-between items-start pl-3">
+                        <div class="flex items-start gap-4 grow">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300 mt-1" :class="(currentStrategy && currentStrategy.enabled) ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'">
                                 <ShieldCheck class="w-7 h-7" />
                             </div>
                             <div>
-                                <h3 class="font-semibold text-slate-900 text-lg">{{ s.name }}</h3>
-                                <p class="text-sm text-slate-500">Auto-liquidates assets (Cash > GIA > ISA > Pension) to cover deficits.</p>
+                                <h3 class="font-semibold text-slate-900 text-lg">Automated Decumulation</h3>
+                                <p class="text-sm text-slate-500 mt-1 leading-relaxed max-w-md">
+                                    Safeguards your plan by auto-liquidating assets to cover deficits. 
+                                    Prioritizes Cash > General Investments > ISAs > Pensions to maximize tax efficiency.
+                                </p>
                             </div>
                         </div>
-                        <PinToggle :item="{ id: 'strat-'+s.id, realId: s.id, type: 'decumulation_strategy', field: 'enabled', label: 'Active', value: s.enabled, format: 'boolean' }" />
-                     </div>
-                     <div class="flex justify-end pr-4">
-                        <button @click="removeStrategy(s.id)" class="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"><Trash2 class="w-3 h-3"/> Delete</button>
+                        
+                        <div class="flex flex-col items-end gap-4">
+                            <div class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none" :class="(currentStrategy && currentStrategy.enabled) ? 'bg-indigo-600' : 'bg-slate-200'">
+                                <span class="translate-x-1 inline-block h-4 w-4 transform rounded-full bg-white transition-transform" :class="(currentStrategy && currentStrategy.enabled) ? 'translate-x-6' : 'translate-x-1'"/>
+                            </div>
+                            
+                            <div v-if="currentStrategy" @click.stop>
+                                <PinToggle :item="{ id: 'strat-'+currentStrategy.id, realId: currentStrategy.id, type: 'decumulation_strategy', field: 'enabled', label: 'Auto Decumulation', value: currentStrategy.enabled, format: 'boolean', inputType: 'boolean' }" />
+                            </div>
+                        </div>
                      </div>
                 </div>
+
             </div>
         </div>
-
         <Drawer :isOpen="!!editingRule" title="Edit Rule" @close="editingRule = null" @save="saveRule">
             <div v-if="editingRule" class="space-y-4">
                 <div><label class="block text-sm font-medium mb-1">Name</label><input type="text" v-model="form.name" class="w-full border rounded px-3 py-2"></div>

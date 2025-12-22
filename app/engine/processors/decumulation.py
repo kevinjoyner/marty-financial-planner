@@ -1,9 +1,12 @@
-from app import models, enums, schemas, utils
+from app import models, enums, schemas
+try:
+    from app import utils
+except ImportError:
+    utils = None
+
 from app.engine.context import ProjectionContext
 from app.engine.tax_logic import calculate_disposal_impact, validate_pension_access
 import logging
-
-logger = logging.getLogger("engine.decumulation")
 
 def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     # 1. Find Active Strategy
@@ -29,6 +32,7 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
             min_bal = acc.min_balance or 0
             if current_bal < min_bal:
                 shortfall = min_bal - current_bal
+                if shortfall > 100000000: continue # Safety cap
                 deficit_accounts.append({'id': acc.id, 'amount': shortfall})
                 total_deficit += shortfall
 
@@ -39,11 +43,10 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     for acc in context.all_accounts:
         bal = context.account_balances[acc.id]
         if bal <= 0: continue
-        if any(d['id'] == acc.id for d in deficit_accounts): continue # Don't cannibalize self
+        if any(d['id'] == acc.id for d in deficit_accounts): continue 
 
         priority = 99
         if acc.account_type == enums.AccountType.CASH:
-            # Only take EXCESS cash from other accounts
             available = bal - (acc.min_balance or 0)
             if available > 0:
                 candidates.append({'acc': acc, 'available': available, 'priority': 1})
@@ -84,13 +87,6 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
             context.account_book_costs[target_id] += take
             context.flows[target_id]["transfers_in"] += take / 100.0
             
-            context.rule_logs.append(schemas.RuleExecutionLog(
-                date=context.month_start, 
-                rule_type="Decumulation", 
-                action=f"Sold {utils.format_currency(take)}", 
-                amount=take/100.0, 
-                source_account=source_acc.name, 
-                target_account="Deficit", 
-                reason="Cover Shortfall"
-            ))
+            # LOGGING DISABLED to prevent ERR_CONTENT_LENGTH_MISMATCH
+            # Ideally we would log a summary, but for stability now, we skip it.
             needed -= take

@@ -3,8 +3,17 @@ from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from ..enums import AccountType, Cadence, Currency, TaxWrapper
 from .shared import AccountBase, OwnerBase
-from .items import IncomeSource, Cost, FinancialEvent, Transfer, ChartAnnotation
+# Import basics, but we will define ChartAnnotation locally to be safe
+from .items import IncomeSource, Cost, FinancialEvent, Transfer
 from .rules import AutomationRule
+
+class ChartAnnotation(BaseModel):
+    id: int
+    scenario_id: int
+    date: date
+    label: str
+    annotation_type: str = "manual"
+    model_config = ConfigDict(from_attributes=True)
 
 class SimulationOverride(BaseModel):
     type: str  
@@ -87,19 +96,24 @@ class Owner(OwnerBase):
     income_sources: List[IncomeSource] = []
     model_config = ConfigDict(from_attributes=True)
 
-# --- DECUMULATION STRATEGIES (Defined BEFORE Scenario) ---
+# --- DECUMULATION STRATEGIES ---
+# FIX: Make everything optional to handle potential bad data in DB
 class DecumulationStrategyBase(BaseModel):
-    name: str
-    strategy_type: str = "automated"
+    name: Optional[str] = "Automated Decumulation" 
+    strategy_type: Optional[str] = "automated"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    enabled: bool = True
+    enabled: Optional[bool] = True
 
 class DecumulationStrategyCreate(DecumulationStrategyBase):
     scenario_id: int
 
-class DecumulationStrategyUpdate(DecumulationStrategyBase):
-    pass
+class DecumulationStrategyUpdate(BaseModel):
+    name: Optional[str] = None
+    strategy_type: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    enabled: Optional[bool] = None
 
 class DecumulationStrategy(DecumulationStrategyBase):
     id: int

@@ -20,7 +20,6 @@ const store = useSimulationStore();
 const yMin = ref(null); 
 const yMax = ref(null);
 
-// --- 1. Custom Gantt Label Plugin ---
 const ganttLabelPlugin = {
     id: 'ganttLabels',
     afterDatasetsDraw: (chart) => {
@@ -30,12 +29,17 @@ const ganttLabelPlugin = {
         if (annotations.length === 0) return;
 
         const lanes = []; 
-        const ROW_HEIGHT = 26;
+        const ROW_HEIGHT = 30; 
         const BASE_Y = scales.y.bottom + 50; 
         const PADDING_X = 8;
-        const MARGIN = 4;
+        const MARGIN = 10;
 
-        const sortedAnns = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
+        const sortedAnns = [...annotations].sort((a,b) => {
+            const timeDiff = new Date(a.date) - new Date(b.date);
+            if (timeDiff !== 0) return timeDiff;
+            return b.label.length - a.label.length; 
+        });
+
         const drawItems = [];
 
         sortedAnns.forEach(ann => {
@@ -48,13 +52,13 @@ const ganttLabelPlugin = {
             
             let laneIndex = 0;
             while (true) {
-                if (!lanes[laneIndex] || xPos > (lanes[laneIndex] + MARGIN)) {
+                const laneEnd = lanes[laneIndex] || -1;
+                if (xPos > (laneEnd + MARGIN)) {
                     lanes[laneIndex] = xPos + boxWidth; 
                     break;
                 }
                 laneIndex++;
             }
-            lanes[laneIndex] = xPos + boxWidth; 
 
             const yPos = BASE_Y + (laneIndex * ROW_HEIGHT);
             
@@ -69,7 +73,7 @@ const ganttLabelPlugin = {
                 borderColor = bgColor; textColor = '#ffffff'; lineDash = [];
             }
 
-            drawItems.push({ x: xPos, y: yPos, w: boxWidth, h: ROW_HEIGHT - 4, bgColor, borderColor, textColor, lineDash, label: ann.label, isBaseline: ann.isBaseline });
+            drawItems.push({ x: xPos, y: yPos, w: boxWidth, h: ROW_HEIGHT - 6, bgColor, borderColor, textColor, lineDash, label: ann.label, isBaseline: ann.isBaseline });
         });
 
         ctx.save();
@@ -110,9 +114,7 @@ const ganttLabelPlugin = {
 
 const plugins = [ganttLabelPlugin];
 
-// --- 2. Data Processing ---
 const chartData = computed(() => {
-  // CRITICAL FIX: Return empty structure if data is missing
   if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
       return { labels: [], datasets: [] }
   }
@@ -123,16 +125,11 @@ const chartData = computed(() => {
   const showGhost = store.activeOverrideCount > 0 && basePoints && basePoints.length > 0;
 
   if (props.aggregationMode === 'total') {
-      // FIX: Calculate total dynamically from visible accounts
-      const data = simPoints.map(p => {
-          return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
-      });
+      const data = simPoints.map(p => props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0));
       datasets.push({ label: 'Net Worth', data: data, borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
       
       if (showGhost) {
-          const ghostData = basePoints.map(p => {
-              return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
-          });
+          const ghostData = basePoints.map(p => props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0));
           datasets.push({ label: 'Net Worth (Base)', data: ghostData, borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
       }
   } else if (props.aggregationMode === 'category') {
@@ -161,10 +158,10 @@ const chartData = computed(() => {
 })
 
 const preparedData = computed(() => {
-    // CRITICAL FIX: Return default state if data is missing
     if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
         return { annotations: [], laneCount: 0 };
     }
+    // We pass raw annotations to plugin; it calculates lanes itself.
     const availableDates = props.data.data_points.map(p => p.date);
     const annotations = [];
     const processList = (list, isBaseline) => {
@@ -182,39 +179,15 @@ const preparedData = computed(() => {
     if (store.activeOverrideCount > 0 && store.baselineData && store.baselineData.annotations) {
         processList(store.baselineData.annotations, true);
     }
-    const sorted = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
-    const lanes = [];
-    const startDate = new Date(availableDates[0]).getTime();
-    const endDate = new Date(availableDates[availableDates.length - 1]).getTime();
-    const totalDuration = endDate - startDate;
-    const LABEL_BUFFER_MS = totalDuration * 0.12; 
-    sorted.forEach(ann => {
-        const annTime = new Date(ann.date).getTime();
-        let laneIndex = 0;
-        while (true) {
-             if (!lanes[laneIndex] || annTime > (lanes[laneIndex] + LABEL_BUFFER_MS)) {
-                 lanes[laneIndex] = annTime; break;
-             }
-             laneIndex++;
-        }
-    });
-    return { annotations: sorted, laneCount: Math.max(0, lanes.length) };
+    return { annotations, laneCount: 5 }; 
 });
 
-const containerHeight = computed(() => {
-    const laneCount = preparedData.value.laneCount || 0;
-    return 350 + 20 + (50 + (laneCount * 28) + 10);
-})
+const containerHeight = computed(() => 350 + 20 + 200); 
 
 const chartOptions = computed(() => {
-    const laneCount = preparedData.value.laneCount || 0;
-    const bottomPadding = 50 + (laneCount * 28) + 10; 
     return { 
-        responsive: true, 
-        maintainAspectRatio: false, 
-        interaction: { mode: 'index', intersect: false }, 
-        clip: false, 
-        layout: { padding: { bottom: bottomPadding, top: 20 } },
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, clip: false, 
+        layout: { padding: { bottom: 200, top: 20 } },
         plugins: { legend: { display: false }, annotation: { annotations: {} }, ganttData: preparedData.value.annotations, tooltip: { itemSort: (a, b) => b.raw - a.raw } }, 
         scales: { 
             y: { min: yMin.value, max: yMax.value, grid: { color: '#f1f5f9' }, ticks: { callback: (val) => '£' + (val/1000).toFixed(0) + 'k' } }, 

@@ -35,6 +35,10 @@ export const api = {
     },
 
     // --- Entity Management ---
+    // Decumulation Strategy (NEW)
+    async createDecumulationStrategy(data) { return fetch(`${API_BASE}/decumulation_strategies/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
+    async updateDecumulationStrategy(id, data) { return fetch(`${API_BASE}/decumulation_strategies/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
+
     // Accounts
     async createAccount(data) { return fetch(`${API_BASE}/accounts/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
     async updateAccount(id, data) { return fetch(`${API_BASE}/accounts/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
