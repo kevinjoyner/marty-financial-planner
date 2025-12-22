@@ -58,6 +58,12 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 ### Phase 12: Simulation Control
 - [x] **1.1 Save Simulation:** "Fork" a set of temporary overrides into a brand new permanent Scenario.
 
+### Phase 14: Deep Domain Logic (Decumulation)
+*Refining the financial engine fidelity and lifecycle planning.*
+- [x] **2.1 Owner Specifics:** DOB-driven logic for Pension Access Age (57+ rule).
+- [x] **2.2 Decumulation Engine:** Strategies for "Standard" drawdown (GIA -> ISA -> Pension).
+- [x] **2.3 Solver:** Iterative Newton-Raphson solver for calculating gross withdrawals net of tax.
+
 ---
 
 ## Upcoming Phases (Prioritized)
@@ -67,23 +73,17 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 - [ ] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g., `IncomeProcessor`, `MortgageProcessor`, `TaxProcessor`) to allow for unit testing and safe extension.
 - [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer to prevent floating-point/integer errors.
 
-### 2. Phase 14: Deep Domain Logic (Decumulation)
-*Refining the financial engine fidelity and lifecycle planning.*
-- [ ] **2.1 Owner Specifics:** DOB-driven logic for Retirement Age and Pension Access Age.
-- [ ] **2.2 Decumulation Engine:** Logic for the "Exit" phase. Strategies for Pension Drawdown, Tax-Free Lump Sum (PCLS) optimization, and sustainable withdrawal rates.
-- [ ] **2.3 Tax Logic Refinement:** Tapered Annual Allowance, Pension Carry-forward, Marriage Allowance.
+### 2. Phase 16: Governance & Insight
+*Making the "Black Box" transparent and strategic.*
+- [ ] **5.1 Tax Regime Transparency:** UI for viewing and editing Tax Bands, Rates, and Limits (moving hardcoded logic to editable data).
+- [ ] **5.2 Strategy Audit Report:** A narrative report explaining *how* the scenario is optimizing tax (e.g., "Utilizing 100% of ISA allowance to save £X in future tax").
 
 ### 3. Phase 12b: Probabilistic Modelling (Advanced Mode)
 *Addressing uncertainty.*
 - [ ] **1.2 Monte Carlo Simulation:** An optional "Toggle" mode to run thousands of simulations with variable market returns.
 - [ ] **1.3 Confidence Intervals:** Visualizing the "Cone of Uncertainty" (e.g., 90% chance of solvency) rather than a single deterministic line.
 
-### 4. Phase 16: Governance & Insight
-*Making the "Black Box" transparent and strategic.*
-- [ ] **5.1 Tax Regime Transparency:** UI for viewing and editing Tax Bands, Rates, and Limits (moving hardcoded logic to editable data).
-- [ ] **5.2 Strategy Audit Report:** A narrative report explaining *how* the scenario is optimizing tax (e.g., "Utilizing 100% of ISA allowance to save £X in future tax").
-
-### 5. Phase 15: Platform Maturity
+### 4. Phase 15: Platform Maturity
 - [ ] **4.1 Authentication:** Multi-user support (Login/Sign-up).
 
 ### Future Considerations (Low Priority)
