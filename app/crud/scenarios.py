@@ -42,7 +42,7 @@ def delete_scenario(db: Session, scenario_id: int):
     db_scenario = get_scenario(db, scenario_id=scenario_id)
     if not db_scenario: return None
     
-    # MANUAL CLEANUP to prevent Foreign Key Constraint Errors
+    # MANUAL CLEANUP
     db.query(models.Account).filter(models.Account.scenario_id == scenario_id).update(
         {models.Account.payment_from_account_id: None, models.Account.rsu_target_account_id: None},
         synchronize_session=False
@@ -57,7 +57,6 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     original = get_scenario(db, scenario_id)
     if not original: return None
 
-    # Helper to apply override if exists
     def get_overridden_val(entity_type, entity_id, field_name, default_val):
         if not overrides: return default_val
         for o in overrides:
@@ -99,8 +98,6 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     # Accounts
     for acc in original.accounts:
         data = {c.name: getattr(acc, c.name) for c in acc.__table__.columns if c.name not in ['id', 'scenario_id', 'payment_from_account_id', 'rsu_target_account_id']}
-        
-        # Apply Overrides
         for field in ['starting_balance', 'interest_rate', 'original_loan_amount', 'fixed_interest_rate', 'min_balance', 'book_cost']:
              if field in data:
                  data[field] = get_overridden_val('account', acc.id, field, data[field])
@@ -111,7 +108,7 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
         db.flush()
         account_map[acc.id] = new_acc
 
-    # Relink Accounts
+    # Relink
     for old_acc in original.accounts:
         if old_acc.payment_from_account_id and old_acc.payment_from_account_id in account_map:
             account_map[old_acc.id].payment_from_account_id = account_map[old_acc.payment_from_account_id].id
@@ -122,8 +119,6 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     for owner in original.owners:
         for inc in owner.income_sources:
             data = {c.name: getattr(inc, c.name) for c in inc.__table__.columns if c.name not in ['id', 'owner_id', 'account_id', 'salary_sacrifice_account_id']}
-            
-            # Overrides
             for field in ['net_value', 'salary_sacrifice_value', 'employer_pension_contribution', 'taxable_benefit_value']:
                 if field in data: data[field] = get_overridden_val('income', inc.id, field, data[field])
             
@@ -137,7 +132,6 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     for cost in original.costs:
         data = {c.name: getattr(cost, c.name) for c in cost.__table__.columns if c.name not in ['id', 'scenario_id', 'account_id']}
         if 'value' in data: data['value'] = get_overridden_val('cost', cost.id, 'value', data['value'])
-
         if cost.account_id in account_map:
             db.add(models.Cost(scenario_id=new_scenario.id, account_id=account_map[cost.account_id].id, **data))
 
@@ -145,7 +139,6 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     for event in original.financial_events:
         data = {c.name: getattr(event, c.name) for c in event.__table__.columns if c.name not in ['id', 'scenario_id', 'from_account_id', 'to_account_id']}
         if 'value' in data: data['value'] = get_overridden_val('event', event.id, 'value', data['value'])
-        
         new_event = models.FinancialEvent(scenario_id=new_scenario.id, **data)
         if event.from_account_id in account_map: new_event.from_account_id = account_map[event.from_account_id].id
         if event.to_account_id in account_map: new_event.to_account_id = account_map[event.to_account_id].id
@@ -155,28 +148,24 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     for trans in original.transfers:
         data = {c.name: getattr(trans, c.name) for c in trans.__table__.columns if c.name not in ['id', 'scenario_id', 'from_account_id', 'to_account_id']}
         if 'value' in data: data['value'] = get_overridden_val('transfer', trans.id, 'value', data['value'])
-
         if trans.from_account_id in account_map and trans.to_account_id in account_map:
             db.add(models.Transfer(scenario_id=new_scenario.id, from_account_id=account_map[trans.from_account_id].id, to_account_id=account_map[trans.to_account_id].id, **data))
 
     # Rules
     for rule in original.automation_rules:
         r_data = {c.name: getattr(rule, c.name) for c in rule.__table__.columns if c.name not in ['id', 'scenario_id', 'source_account_id', 'target_account_id']}
-        
         for field in ['trigger_value', 'transfer_value', 'transfer_cap']:
              if field in r_data: r_data[field] = get_overridden_val('rule', rule.id, field, r_data[field])
-
         new_rule = models.AutomationRule(scenario_id=new_scenario.id, **r_data)
         if rule.source_account_id in account_map: new_rule.source_account_id = account_map[rule.source_account_id].id
         if rule.target_account_id in account_map: new_rule.target_account_id = account_map[rule.target_account_id].id
         db.add(new_rule)
     
-    # Decumulation Strategies (Missing in previous version)
+    # Decumulation
     for strat in original.decumulation_strategies:
         s_data = {c.name: getattr(strat, c.name) for c in strat.__table__.columns if c.name not in ['id', 'scenario_id']}
         if hasattr(strat, 'enabled'):
              s_data['enabled'] = get_overridden_val('strategy', strat.id, 'enabled', s_data.get('enabled'))
-        
         db.add(models.DecumulationStrategy(scenario_id=new_scenario.id, **s_data))
 
     # Annotations
@@ -198,6 +187,7 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
     db.add(scenario)
     db.commit()
 
+    # Use String Keys for mapping to be safe against JSON type parsing
     owner_map = {}
     for owner_data in data.get("owners", []):
         db_owner = models.Owner(
@@ -207,7 +197,7 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             retirement_age=owner_data.get("retirement_age")
         )
         db.add(db_owner); db.commit(); db.refresh(db_owner)
-        owner_map[owner_data.get("id")] = db_owner.id
+        owner_map[str(owner_data.get("id"))] = db_owner.id
 
     account_map = {}
     for acc in data.get("accounts", []):
@@ -230,22 +220,38 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             vesting_schedule=acc.get("vesting_schedule"),
             unit_price=acc.get("unit_price")
         )
-        # Default book cost if missing
         if db_acc.book_cost is None: db_acc.book_cost = db_acc.starting_balance
 
         if "owners" in acc:
             owners_list = []
             for o in acc["owners"]:
-                if o.get("id") in owner_map: owners_list.append(db.get(models.Owner, owner_map[o["id"]]))
+                # Match by Name if ID linking is ambiguous in JSON
+                # But here we rely on name matching as a fallback or existing logic?
+                # Actually, in the demo JSON, owners inside accounts only have 'name', not 'id'.
+                # So we must lookup by Name if ID is missing.
+                found = None
+                if o.get("id") and str(o["id"]) in owner_map:
+                    found = db.get(models.Owner, owner_map[str(o["id"])])
+                elif o.get("name"):
+                    # Fallback: Find owner by name in the CURRENT import set
+                    # We can't query DB easily, but we can look at the owner_map values
+                    # This is inefficient but safe for small sets.
+                    for oid in owner_map.values():
+                        candidate = db.get(models.Owner, oid)
+                        if candidate.name == o["name"]:
+                            found = candidate
+                            break
+                if found: owners_list.append(found)
             db_acc.owners = owners_list
+            
         db.add(db_acc); db.commit(); db.refresh(db_acc)
-        account_map[acc.get("id")] = db_acc.id
+        account_map[str(acc.get("id"))] = db_acc.id
 
     for owner_data in data.get("owners", []):
-        new_owner_id = owner_map.get(owner_data.get("id"))
+        new_owner_id = owner_map.get(str(owner_data.get("id")))
         for inc in owner_data.get("income_sources", []):
-            mapped_acc_id = account_map.get(inc.get("account_id"))
-            mapped_sac_id = account_map.get(inc.get("salary_sacrifice_account_id"))
+            mapped_acc_id = account_map.get(str(inc.get("account_id")))
+            mapped_sac_id = account_map.get(str(inc.get("salary_sacrifice_account_id")))
             db_inc = models.IncomeSource(
                 owner_id=new_owner_id,
                 account_id=mapped_acc_id,
@@ -278,27 +284,27 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
 
     if "costs" in data:
         for c in data["costs"]:
-            acc = account_map.get(c.get("account_id"))
+            acc = account_map.get(str(c.get("account_id")))
             if acc:
                 db.add(models.Cost(scenario_id=scenario.id, account_id=acc, name=c["name"], value=c["value"], cadence=c["cadence"], start_date=_safe_parse_date(c["start_date"]), end_date=_safe_parse_date(c.get("end_date")), is_recurring=c.get("is_recurring", True)))
 
     if "automation_rules" in data:
         for r in data["automation_rules"]:
-            src_id = account_map.get(r.get("source_account_id"))
-            tgt_id = account_map.get(r.get("target_account_id"))
+            src_id = account_map.get(str(r.get("source_account_id")))
+            tgt_id = account_map.get(str(r.get("target_account_id")))
             if src_id:
                 db.add(models.AutomationRule(scenario_id=scenario.id, name=r["name"], rule_type=r["rule_type"], source_account_id=src_id, target_account_id=tgt_id, trigger_value=r["trigger_value"], transfer_value=r.get("transfer_value"), cadence=r["cadence"], start_date=_safe_parse_date(r.get("start_date")), end_date=_safe_parse_date(r.get("end_date")), priority=r.get("priority", 0)))
 
     if "financial_events" in data:
         for e in data["financial_events"]:
-            from_acc = account_map.get(e.get("from_account_id"))
-            to_acc = account_map.get(e.get("to_account_id"))
+            from_acc = account_map.get(str(e.get("from_account_id")))
+            to_acc = account_map.get(str(e.get("to_account_id")))
             db.add(models.FinancialEvent(scenario_id=scenario.id, from_account_id=from_acc, to_account_id=to_acc, name=e["name"], value=e["value"], event_date=_safe_parse_date(e["event_date"]), event_type=e["event_type"], show_on_chart=e.get("show_on_chart", False)))
 
     if "transfers" in data:
         for t in data["transfers"]:
-            from_acc = account_map.get(t.get("from_account_id"))
-            to_acc = account_map.get(t.get("to_account_id"))
+            from_acc = account_map.get(str(t.get("from_account_id")))
+            to_acc = account_map.get(str(t.get("to_account_id")))
             if from_acc and to_acc:
                 db.add(models.Transfer(scenario_id=scenario.id, from_account_id=from_acc, to_account_id=to_acc, name=t["name"], value=t["value"], cadence=t["cadence"], start_date=_safe_parse_date(t["start_date"]), end_date=_safe_parse_date(t.get("end_date")), show_on_chart=t.get("show_on_chart", False)))
 
@@ -319,10 +325,11 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
 
     db.commit()
     
+    # Linking Accounts (Payment From / RSU Target)
     for acc_data in data.get("accounts", []):
-        db_id = account_map.get(acc_data["id"])
-        pay_from = account_map.get(acc_data.get("payment_from_account_id"))
-        rsu_target = account_map.get(acc_data.get("rsu_target_account_id"))
+        db_id = account_map.get(str(acc_data["id"]))
+        pay_from = account_map.get(str(acc_data.get("payment_from_account_id")))
+        rsu_target = account_map.get(str(acc_data.get("rsu_target_account_id")))
         if db_id and (pay_from or rsu_target):
             acc = db.get(models.Account, db_id)
             if pay_from: acc.payment_from_account_id = pay_from
