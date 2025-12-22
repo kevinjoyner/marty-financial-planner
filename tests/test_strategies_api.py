@@ -1,12 +1,12 @@
-from fastapi.testclient import TestClient
-from app.main import app
 from .utils import create_test_scenario
 
-client = TestClient(app)
+# Note: 'client' is a pytest fixture automatically provided by conftest.py
+# We do NOT instantiate TestClient(app) here.
 
-def test_strategy_crud():
+def test_strategy_crud(client):
     # 1. Create Scenario
-    scen_id = create_test_scenario(client)
+    scen_data = create_test_scenario(client, "Strategy Test Scenario")
+    scen_id = scen_data["id"]
     
     # 2. Create Strategy
     payload = {
