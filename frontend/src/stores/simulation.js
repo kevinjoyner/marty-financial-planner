@@ -48,7 +48,6 @@ export const useSimulationStore = defineStore('simulation', () => {
       scenario.value = await api.getScenario(activeScenarioId.value);
   }
 
-  // Helper to construct override list for API
   function getApiOverrides() {
       return pinnedItems.value
         .filter(item => overrides.value[item.id] !== undefined)
@@ -62,26 +61,36 @@ export const useSimulationStore = defineStore('simulation', () => {
         }));
   }
 
+  // --- CORE PROJECTION FUNCTIONS ---
+
   async function runBaseline() {
+      // 1. Fetch the 'clean' projection from the server
       const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
       baselineData.value = res;
-      if (Object.keys(overrides.value).length === 0) simulationData.value = res;
-      else runSimulation();
+      
+      // 2. If we have local overrides, re-apply them on top
+      if (Object.keys(overrides.value).length === 0) {
+          simulationData.value = res;
+      } else {
+          await runSimulation();
+      }
   }
 
   async function runSimulation() {
+    // If no overrides, just use baseline
     if (Object.keys(overrides.value).length === 0) {
-        simulationData.value = baselineData.value;
+        if (baselineData.value) simulationData.value = baselineData.value;
         return;
     }
     
     const apiOverrides = getApiOverrides();
-    
     try {
         const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, apiOverrides);
         simulationData.value = res;
     } catch (e) { console.error("Sim failed", e); }
   }
+
+  // --------------------------------
 
   async function setDuration(months) {
       simulationMonths.value = months;
@@ -90,7 +99,6 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      // Snapshot current state for history before saving
       if (scenario.value && id !== 'new') { 
           history.value.unshift({
               timestamp: new Date(),
@@ -102,13 +110,9 @@ export const useSimulationStore = defineStore('simulation', () => {
 
       try {
           const payload = { ...data };
-          
-          // Ensure scenario_id is set for new items
-          if (id === 'new') {
-              payload.scenario_id = activeScenarioId.value;
-          }
+          if (id === 'new') payload.scenario_id = activeScenarioId.value;
 
-          // Pence Conversion Logic
+          // Conversions (Pence/Float)
           if (payload.value !== undefined) payload.value = Math.round(payload.value * 100);
           if (payload.net_value !== undefined) payload.net_value = Math.round(payload.net_value * 100);
           if (payload.starting_balance !== undefined) payload.starting_balance = Math.round(payload.starting_balance * 100);
@@ -122,38 +126,15 @@ export const useSimulationStore = defineStore('simulation', () => {
               }
           }
 
-          if (type === 'account') {
-              if (id === 'new') await api.createAccount(payload);
-              else await api.updateAccount(id, payload);
-          }
-          else if (type === 'income') {
-              if (id === 'new') await api.createIncome(payload);
-              else await api.updateIncome(id, payload);
-          }
-          else if (type === 'cost') {
-               if (id === 'new') await api.createCost(payload);
-               else await api.updateCost(id, payload);
-          }
-          else if (type === 'transfer') {
-              if(id === 'new') await api.createTransfer(payload);
-              else await api.updateTransfer(id, payload);
-          }
-          else if (type === 'event') {
-              if(id === 'new') await api.createFinancialEvent(payload);
-              else await api.updateFinancialEvent(id, payload);
-          }
-          else if (type === 'owner') {
-               if (id === 'new') await api.createOwner(payload);
-               else await api.updateOwner(id, payload);
-          }
-          else if (type === 'tax_limit') {
-               if (id === 'new') await api.createTaxLimit(activeScenarioId.value, payload);
-               else await api.updateTaxLimit(id, payload);
-          }
-          else if (type === 'rule') {
-              if(id === 'new') await api.createRule(payload);
-              else await api.updateRule(id, payload);
-          }
+          // Dispatch to API
+          if (type === 'account') id === 'new' ? await api.createAccount(payload) : await api.updateAccount(id, payload);
+          else if (type === 'income') id === 'new' ? await api.createIncome(payload) : await api.updateIncome(id, payload);
+          else if (type === 'cost') id === 'new' ? await api.createCost(payload) : await api.updateCost(id, payload);
+          else if (type === 'transfer') id === 'new' ? await api.createTransfer(payload) : await api.updateTransfer(id, payload);
+          else if (type === 'event') id === 'new' ? await api.createFinancialEvent(payload) : await api.updateFinancialEvent(id, payload);
+          else if (type === 'owner') id === 'new' ? await api.createOwner(payload) : await api.updateOwner(id, payload);
+          else if (type === 'tax_limit') id === 'new' ? await api.createTaxLimit(activeScenarioId.value, payload) : await api.updateTaxLimit(id, payload);
+          else if (type === 'rule') id === 'new' ? await api.createRule(payload) : await api.updateRule(id, payload);
 
           await loadScenario();
           await runBaseline(); 
@@ -165,7 +146,6 @@ export const useSimulationStore = defineStore('simulation', () => {
   async function deleteEntity(type, id) {
       if (!confirm("Are you sure you want to delete this?")) return false;
       isInternalLoading.value = true;
-      
       try {
           let url = '';
           if (type === 'account') url = `/api/accounts/${id}`;
@@ -198,13 +178,7 @@ export const useSimulationStore = defineStore('simulation', () => {
       try {
           const newScen = await api.restoreScenario(snapshotData);
           activeScenarioId.value = newScen.id;
-          
-          history.value.unshift({
-              timestamp: new Date(),
-              description: description,
-              scenarioSnapshot: JSON.parse(JSON.stringify(newScen)) 
-          });
-          
+          history.value.unshift({ timestamp: new Date(), description: description, scenarioSnapshot: JSON.parse(JSON.stringify(newScen)) });
           await loadScenario();
           await runBaseline();
           if (oldId && oldId !== newScen.id) await api.deleteScenario(oldId);
@@ -269,9 +243,10 @@ export const useSimulationStore = defineStore('simulation', () => {
       }
   })
 
+  // EXPORT EVERYTHING EXPLICITLY
   return {
     activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
     loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides,
-    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline
+    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline, runSimulation
   }
 })

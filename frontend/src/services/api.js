@@ -35,6 +35,13 @@ export const api = {
     },
 
     // --- Entity Management ---
+
+    // Decumulation Strategies (Fixed)
+    async getStrategies(scenarioId) { return (await fetch(`${API_BASE}/scenarios/${scenarioId}/strategies/`)).json(); },
+    async createStrategy(scenarioId, data) { return fetch(`${API_BASE}/scenarios/${scenarioId}/strategies/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
+    async updateStrategy(scenarioId, strategyId, data) { return fetch(`${API_BASE}/scenarios/${scenarioId}/strategies/${strategyId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
+    async deleteStrategy(scenarioId, strategyId) { return fetch(`${API_BASE}/scenarios/${scenarioId}/strategies/${strategyId}`, { method: 'DELETE' }); },
+
     // Accounts
     async createAccount(data) { return fetch(`${API_BASE}/accounts/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
     async updateAccount(id, data) { return fetch(`${API_BASE}/accounts/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },

@@ -17,6 +17,7 @@ from app.engine.processors.rsu import process_rsu_vesting
 from app.engine.processors.rules import process_rules
 from app.engine.processors.mortgage import process_standard_mortgage_payments
 from app.engine.processors.assets import process_interest
+from app.engine.processors.decumulation import process_decumulation
 
 def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schemas.SimulationOverride]):
     for override in overrides:
@@ -45,9 +46,6 @@ def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schema
 
 def run_projection(db: Session, scenario: models.Scenario, months: int) -> schemas.Projection:
     all_accounts = scenario.accounts
-    # FIX: We previously returned empty list if no accounts, causing Chart.js crash.
-    # Now we allow the loop to run even with no accounts to generate zero-spine dates.
-    # if not all_accounts: return schemas.Projection(data_points=[])
     
     start_date: date = scenario.start_date
     initial_balances = {acc.id: acc.starting_balance for acc in all_accounts}
@@ -80,6 +78,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int) -> schem
         process_rsu_vesting(scenario, context)
         process_standard_mortgage_payments(scenario, context)
         process_rules(scenario, context)
+        process_decumulation(scenario, context) # <--- NEW PROCESSOR
         process_interest(scenario, context)
         # ----------------------
         
