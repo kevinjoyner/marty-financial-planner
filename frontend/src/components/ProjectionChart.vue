@@ -62,7 +62,8 @@ const ganttLabelPlugin = {
             if (ann.isBaseline) {
                 bgColor = '#f1f5f9'; borderColor = '#94a3b8'; textColor = '#64748b'; lineDash = [3, 3];
             } else {
-                if (ann.type === 'milestone') bgColor = '#16a34a';
+                // FIX: 'success' events (Cleared, Freedom) are now GREEN too
+                if (ann.type === 'milestone' || ann.type === 'success') bgColor = '#16a34a';
                 else if (ann.type === 'transaction') bgColor = '#635bff';
                 else if (ann.type === 'insolvency') bgColor = '#dc2626';
                 else bgColor = '#94a3b8';
@@ -112,7 +113,6 @@ const plugins = [ganttLabelPlugin];
 
 // --- 2. Data Processing ---
 const chartData = computed(() => {
-  // CRITICAL FIX: Return empty structure if data is missing
   if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
       return { labels: [], datasets: [] }
   }
@@ -123,18 +123,8 @@ const chartData = computed(() => {
   const showGhost = store.activeOverrideCount > 0 && basePoints && basePoints.length > 0;
 
   if (props.aggregationMode === 'total') {
-      // FIX: Calculate total dynamically from visible accounts
-      const data = simPoints.map(p => {
-          return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
-      });
-      datasets.push({ label: 'Net Worth', data: data, borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
-      
-      if (showGhost) {
-          const ghostData = basePoints.map(p => {
-              return props.visibleAccountIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0);
-          });
-          datasets.push({ label: 'Net Worth (Base)', data: ghostData, borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
-      }
+      datasets.push({ label: 'Net Worth', data: simPoints.map(p => p.balance), borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
+      if (showGhost) datasets.push({ label: 'Net Worth (Base)', data: basePoints.map(p => p.balance), borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
   } else if (props.aggregationMode === 'category') {
       const categories = ['liquid', 'illiquid', 'liabilities', 'unvested'];
       const catMap = store.accountsByCategory; 
@@ -161,7 +151,6 @@ const chartData = computed(() => {
 })
 
 const preparedData = computed(() => {
-    // CRITICAL FIX: Return default state if data is missing
     if (!props.data || !props.data.data_points || props.data.data_points.length === 0) {
         return { annotations: [], laneCount: 0 };
     }

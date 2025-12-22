@@ -11,6 +11,12 @@ const store = useSimulationStore()
 const alertsExpanded = ref(false)
 const isAxisFrozen = ref(false)
 
+// --- Persistence for Horizon ---
+// We watch the store value and save it to localStorage
+watch(() => store.simulationMonths, (newVal) => {
+    localStorage.setItem('marty_simulation_months', newVal)
+})
+
 // --- Horizon / Duration Logic ---
 const horizonMode = ref('years')
 const horizonYears = ref(10)
@@ -25,7 +31,9 @@ const syncInputsFromStore = () => {
         const start = new Date(store.scenario.start_date);
         const end = new Date(start);
         end.setMonth(start.getMonth() + totalMonths);
-        horizonDate.value = end.toISOString().split('T')[0];
+        try {
+            horizonDate.value = end.toISOString().split('T')[0];
+        } catch (e) { console.error("Invalid Date", e) }
     }
 }
 
@@ -38,8 +46,11 @@ const updateHorizon = () => {
         store.setDuration(totalMonths);
         const newDate = new Date(start);
         newDate.setMonth(start.getMonth() + totalMonths);
-        horizonDate.value = newDate.toISOString().split('T')[0];
+        try {
+            horizonDate.value = newDate.toISOString().split('T')[0];
+        } catch (e) { }
     } else {
+        if (!horizonDate.value) return;
         const end = new Date(horizonDate.value);
         let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
         if (diffMonths < 1) diffMonths = 1;
@@ -65,15 +76,12 @@ const selectAllAccounts = () => {
     }
 }
 
-// Helper to prevent recursive update loops with arrays
 const updateVisibleAccounts = (newIds) => {
     if (!newIds) return;
-    // Check lengths first
     if (newIds.length !== visibleAccountIds.value.length) {
         visibleAccountIds.value = newIds;
         return;
     }
-    // Check content (assuming unsorted is fine if order comes from legend, but sort to be safe)
     const currentSorted = [...visibleAccountIds.value].sort();
     const newSorted = [...newIds].sort();
     const isSame = currentSorted.every((val, index) => val === newSorted[index]);
@@ -87,21 +95,15 @@ const loadSettings = () => {
     if (!store.activeScenarioId) return;
     const key = `marty_dash_${store.activeScenarioId}`;
     const saved = localStorage.getItem(key);
-    
-    // Get valid IDs from current scenario to sanitize stale settings
     const validIds = new Set(store.scenario?.accounts?.map(a => a.id) || []);
 
     if (saved) {
         try {
             const p = JSON.parse(saved);
             if (p.visibleAccountIds && Array.isArray(p.visibleAccountIds) && p.visibleAccountIds.length > 0) {
-                // Filter only valid IDs
                 const sanitized = p.visibleAccountIds.filter(id => validIds.has(id));
-                if (sanitized.length > 0) {
-                     visibleAccountIds.value = sanitized;
-                } else {
-                     selectAllAccounts();
-                }
+                if (sanitized.length > 0) visibleAccountIds.value = sanitized;
+                else selectAllAccounts();
             } else { selectAllAccounts(); }
             
             if (p.aggregationMode) aggregationMode.value = p.aggregationMode;
@@ -122,22 +124,16 @@ const saveSettings = () => {
 }
 
 onMounted(async () => {
-    // Check if store is already initialized to avoid double-loading
     if (!store.activeScenarioId || !store.scenario) {
         await store.init();
     }
-    
-    // Only load settings if we haven't already via the watcher
     if (!isSettingsLoaded.value) {
         loadSettings();
     }
-    
     if(store.scenario) syncInputsFromStore();
 })
 
-// FIX: Watch scenario for late loading or updates to ensure accounts are selected
 watch(() => store.scenario, (newVal) => {
-    // If we have accounts but none are visible (likely because settings loaded before data), reload settings
     if (newVal && newVal.accounts && newVal.accounts.length > 0) {
         if (visibleAccountIds.value.length === 0) {
             loadSettings();
@@ -156,14 +152,37 @@ watch(() => store.activeScenarioId, async (newId) => {
 
 watch([visibleAccountIds, aggregationMode, hiddenAlertSignatures], saveSettings, { deep: true });
 
-// --- Alert Logic ---
+// --- Alert Logic (De-duped) ---
 const rawAlerts = computed(() => store.simulationData?.warnings || [])
 
+const getTaxYear = (dateStr) => {
+    const d = new Date(dateStr)
+    const year = d.getFullYear()
+    const month = d.getMonth() + 1 
+    return month >= 4 ? `${year}/${year+1}` : `${year-1}/${year}`
+}
+
 const filteredAlerts = computed(() => {
-    return rawAlerts.value.filter(a => {
+    // 1. User Hidden Check
+    const visible = rawAlerts.value.filter(a => {
         const sig = `${a.source_type}:${a.account_id}`;
         return !hiddenAlertSignatures.value.has(sig);
     });
+
+    // 2. De-duplication by Tax Year + Message + Account
+    const seen = new Set();
+    const deduped = [];
+
+    for (const alert of visible) {
+        const taxYear = getTaxYear(alert.date);
+        const uniqueKey = `${taxYear}|${alert.account_id}|${alert.message}`;
+        
+        if (!seen.has(uniqueKey)) {
+            seen.add(uniqueKey);
+            deduped.push({ ...alert, tax_year: taxYear }); // Append tax year to object
+        }
+    }
+    return deduped;
 })
 
 const visibleAlerts = computed(() => alertsExpanded.value ? filteredAlerts.value : filteredAlerts.value.slice(0, 1))
@@ -191,7 +210,6 @@ const safeDefaults = {
 };
 
 const calculateMetrics = (data) => {
-    // FIX: Return safe defaults if no data points (New Scenario)
     if (!data || !data.data_points || data.data_points.length === 0) return safeDefaults;
     
     const lastPoint = data.data_points[data.data_points.length - 1];
@@ -269,7 +287,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
                                 <div class="flex items-start gap-2">
                                     <AlertTriangle class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                                     <span class="text-sm text-amber-900 font-medium leading-tight">
-                                        <span class="font-mono text-xs opacity-75 mr-1">{{ alert.date }}:</span>
+                                        <span class="font-mono text-xs opacity-75 mr-1 bg-amber-100 px-1 rounded">{{ alert.tax_year }}:</span>
                                         {{ alert.message }}
                                     </span>
                                 </div>
@@ -345,7 +363,7 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
              
              <div class="flex gap-6 min-h-[450px]">
                  <div class="flex-1 min-w-0">
-                     <div v-if="store.loading" class="flex items-center justify-center text-slate-400 h-[450px]">Updating Model...</div>
+                     <div v-if="store.isInternalLoading" class="flex items-center justify-center text-slate-400 h-[450px]">Updating Model...</div>
                      <ProjectionChart v-else-if="store.simulationData && isSettingsLoaded" 
                         :data="store.simulationData" 
                         :visibleAccountIds="visibleAccountIds" 

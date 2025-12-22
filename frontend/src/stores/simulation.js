@@ -4,10 +4,11 @@ import { api } from '../services/api'
 
 export const useSimulationStore = defineStore('simulation', () => {
   
-  // Persistence
+  // Persistence for Scenario ID
   const savedId = localStorage.getItem('marty_active_scenario_id')
   const activeScenarioId = ref(savedId ? parseInt(savedId) : null)
   
+  // Persistence for Horizon (Months)
   const savedMonths = localStorage.getItem('marty_simulation_months')
   const simulationMonths = ref(savedMonths ? parseInt(savedMonths) : 120)
 
@@ -21,11 +22,11 @@ export const useSimulationStore = defineStore('simulation', () => {
   const simulationData = ref(null)
   const history = ref([])
 
+  // Watchers for Persistence
   watch(activeScenarioId, (newVal) => {
       if (newVal) localStorage.setItem('marty_active_scenario_id', newVal)
-      else localStorage.removeItem('marty_active_scenario_id')
   })
-
+  
   watch(simulationMonths, (newVal) => {
       if (newVal) localStorage.setItem('marty_simulation_months', newVal)
   })
@@ -47,27 +48,14 @@ export const useSimulationStore = defineStore('simulation', () => {
     isInternalLoading.value = true;
     try {
         await loadScenario();
-        if (scenario.value) {
-            await runBaseline();
-        }
+        await runBaseline();
     } catch (e) { 
         console.error("Init failed:", e);
     } finally { isInternalLoading.value = false; }
   }
 
   async function loadScenario() {
-      try {
-          scenario.value = await api.getScenario(activeScenarioId.value);
-      } catch (e) {
-          console.warn(`Failed to load scenario ${activeScenarioId.value}. Resetting.`, e);
-          activeScenarioId.value = null;
-          scenario.value = null;
-          const list = await api.getScenarios();
-          if (list.length > 0) {
-              activeScenarioId.value = list[0].id;
-              scenario.value = await api.getScenario(activeScenarioId.value);
-          }
-      }
+      scenario.value = await api.getScenario(activeScenarioId.value);
   }
 
   function getApiOverrides() {
@@ -84,22 +72,15 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   async function runBaseline() {
-      if (!activeScenarioId.value) return;
-      try {
-          const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
-          baselineData.value = res;
-          if (Object.keys(overrides.value).length === 0) {
-              simulationData.value = res;
-          } else {
-              await runSimulation();
-          }
-      } catch (e) { console.error("Run baseline failed", e); }
+      const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
+      baselineData.value = res;
+      if (Object.keys(overrides.value).length === 0) simulationData.value = res;
+      else runSimulation();
   }
 
   async function runSimulation() {
-    if (!activeScenarioId.value) return;
     if (Object.keys(overrides.value).length === 0) {
-        if (baselineData.value) simulationData.value = baselineData.value;
+        simulationData.value = baselineData.value;
         return;
     }
     const apiOverrides = getApiOverrides();
@@ -116,7 +97,7 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      if (scenario.value) { 
+      if (scenario.value && id !== 'new') { 
           history.value.unshift({
               timestamp: new Date(),
               description: description,
@@ -133,6 +114,8 @@ export const useSimulationStore = defineStore('simulation', () => {
           if (payload.net_value !== undefined) payload.net_value = Math.round(payload.net_value * 100);
           if (payload.starting_balance !== undefined) payload.starting_balance = Math.round(payload.starting_balance * 100);
           if (payload.original_loan_amount !== undefined && payload.original_loan_amount !== null) payload.original_loan_amount = Math.round(payload.original_loan_amount * 100);
+          if (payload.unit_price !== undefined && payload.unit_price !== null) payload.unit_price = Math.round(payload.unit_price * 100);
+
           if (type === 'tax_limit' && payload.amount !== undefined) payload.amount = Math.round(payload.amount * 100);
           if (type === 'rule' && payload.trigger_value !== undefined) payload.trigger_value = Math.round(payload.trigger_value * 100);
           
@@ -141,27 +124,39 @@ export const useSimulationStore = defineStore('simulation', () => {
                   payload.transfer_value = Math.round(payload.transfer_value * 100);
               }
           }
-          
-          if (type === 'income') {
-             if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
-             if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
-             if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
-          }
-          
-          // RSU Price
-          if (type === 'account' && payload.account_type === 'RSU Grant' && payload.unit_price) {
-             payload.unit_price = Math.round(payload.unit_price * 100);
-          }
 
-          if (type === 'account') id === 'new' ? await api.createAccount(payload) : await api.updateAccount(id, payload);
-          else if (type === 'income') id === 'new' ? await api.createIncome(payload) : await api.updateIncome(id, payload);
-          else if (type === 'cost') id === 'new' ? await api.createCost(payload) : await api.updateCost(id, payload);
-          else if (type === 'transfer') id === 'new' ? await api.createTransfer(payload) : await api.updateTransfer(id, payload);
-          else if (type === 'event') id === 'new' ? await api.createFinancialEvent(payload) : await api.updateFinancialEvent(id, payload);
-          else if (type === 'owner') id === 'new' ? await api.createOwner(payload) : await api.updateOwner(id, payload);
-          else if (type === 'tax_limit') id === 'new' ? await api.createTaxLimit(activeScenarioId.value, payload) : await api.updateTaxLimit(id, payload);
-          else if (type === 'rule') id === 'new' ? await api.createRule(payload) : await api.updateRule(id, payload);
-          else if (type === 'strategy') id === 'new' ? await api.createStrategy(activeScenarioId.value, payload) : await api.updateStrategy(activeScenarioId.value, id, payload);
+          if (type === 'account') {
+              if (id === 'new') await api.createAccount(payload);
+              else await api.updateAccount(id, payload);
+          }
+          else if (type === 'income') {
+              if (id === 'new') await api.createIncome(payload);
+              else await api.updateIncome(id, payload);
+          }
+          else if (type === 'cost') {
+               if (id === 'new') await api.createCost(payload);
+               else await api.updateCost(id, payload);
+          }
+          else if (type === 'transfer') {
+              if(id === 'new') await api.createTransfer(payload);
+              else await api.updateTransfer(id, payload);
+          }
+          else if (type === 'event') {
+              if(id === 'new') await api.createFinancialEvent(payload);
+              else await api.updateFinancialEvent(id, payload);
+          }
+          else if (type === 'owner') {
+               if (id === 'new') await api.createOwner(payload);
+               else await api.updateOwner(id, payload);
+          }
+          else if (type === 'tax_limit') {
+               if (id === 'new') await api.createTaxLimit(activeScenarioId.value, payload);
+               else await api.updateTaxLimit(id, payload);
+          }
+          else if (type === 'rule') {
+              if(id === 'new') await api.createRule(payload);
+              else await api.updateRule(id, payload);
+          }
 
           await loadScenario();
           await runBaseline(); 
@@ -170,34 +165,9 @@ export const useSimulationStore = defineStore('simulation', () => {
       finally { isInternalLoading.value = false; }
   }
 
-  async function reorderRules(orderedIds) {
-      isInternalLoading.value = true;
-      if (scenario.value) {
-          history.value.unshift({
-              timestamp: new Date(),
-              description: "Reordered Rules",
-              scenarioSnapshot: JSON.parse(JSON.stringify(scenario.value))
-          });
-          if (history.value.length > 20) history.value.pop();
-      }
-      try {
-          await api.reorderRules(orderedIds);
-          await loadScenario();
-          await runBaseline();
-      } catch (e) { console.error("Reorder failed", e); }
-      finally { isInternalLoading.value = false; }
-  }
-
   async function deleteEntity(type, id) {
       if (!confirm("Are you sure you want to delete this?")) return false;
       isInternalLoading.value = true;
-      if (scenario.value) { 
-          history.value.unshift({
-              timestamp: new Date(),
-              description: `Deleted ${type}`,
-              scenarioSnapshot: JSON.parse(JSON.stringify(scenario.value))
-          });
-      }
       try {
           let url = '';
           if (type === 'account') url = `/api/accounts/${id}`;
@@ -208,7 +178,6 @@ export const useSimulationStore = defineStore('simulation', () => {
           else if (type === 'owner') url = `/api/owners/${id}`;
           else if (type === 'tax_limit') url = `/api/tax_limits/${id}`;
           else if (type === 'rule') url = `/api/automation_rules/${id}`;
-          else if (type === 'strategy') url = `/api/scenarios/${activeScenarioId.value}/strategies/${id}`;
           
           await api.deleteResource(url);
           
@@ -216,6 +185,7 @@ export const useSimulationStore = defineStore('simulation', () => {
               const item = pinnedItems.value.find(p => p.realId === id && p.type === type);
               unpinItem(item.id);
           }
+
           await loadScenario();
           await runBaseline(); 
           return true;
@@ -230,7 +200,7 @@ export const useSimulationStore = defineStore('simulation', () => {
       try {
           const newScen = await api.restoreScenario(snapshotData);
           activeScenarioId.value = newScen.id;
-          history.value.unshift({ timestamp: new Date(), description: description, scenarioSnapshot: JSON.parse(JSON.stringify(newScen)) });
+          history.value.unshift({ timestamp: new Date(), description, scenarioSnapshot: JSON.parse(JSON.stringify(newScen)) });
           await loadScenario();
           await runBaseline();
           if (oldId && oldId !== newScen.id) await api.deleteScenario(oldId);
@@ -256,9 +226,7 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   function unpinItem(itemId) {
     pinnedItems.value = pinnedItems.value.filter(i => i.id !== itemId)
-    if (itemId in overrides.value) {
-        delete overrides.value[itemId]
-    }
+    if (itemId in overrides.value) delete overrides.value[itemId]
     runSimulation()
   }
 
@@ -273,31 +241,18 @@ export const useSimulationStore = defineStore('simulation', () => {
   }
 
   const activeOverrideCount = computed(() => Object.keys(overrides.value).length)
-  
-  // SAFE COMPUTEDS
-  const currentNetWorth = computed(() => {
-      if (!simulationData.value?.data_points?.length) return 0;
-      return simulationData.value.data_points[0].balance;
-  })
-  
-  const projectedNetWorth = computed(() => {
-      if (!simulationData.value?.data_points?.length) return 0;
-      return simulationData.value.data_points[simulationData.value.data_points.length - 1].balance;
-  })
-
-  const baselineProjectedNetWorth = computed(() => {
-      if (!baselineData.value?.data_points?.length) return 0;
-      return baselineData.value.data_points[baselineData.value.data_points.length - 1].balance;
-  })
-  
+  const currentNetWorth = computed(() => simulationData.value?.data_points[0]?.balance || 0)
+  const projectedNetWorth = computed(() => simulationData.value?.data_points[simulationData.value.data_points.length - 1]?.balance || 0)
+  const baselineProjectedNetWorth = computed(() => baselineData.value?.data_points[baselineData.value.data_points.length - 1]?.balance || 0)
   const annualReturn = computed(() => {
-      if (!simulationData.value?.data_points?.length) return 0;
+      if (!simulationData.value) return 0;
       const start = currentNetWorth.value;
       const end = projectedNetWorth.value;
       const years = simulationMonths.value / 12;
       return (start <= 0 || years <= 0) ? 0 : (Math.pow(end / start, 1 / years) - 1) * 100;
   })
   
+  // FIX: Explicitly exclude Main Residence from Liquid
   const accountsByCategory = computed(() => {
       if (!scenario.value) return { liquid: [], illiquid: [], liabilities: [], unvested: [] };
       const accs = scenario.value.accounts;
@@ -311,8 +266,7 @@ export const useSimulationStore = defineStore('simulation', () => {
               (!a.tax_wrapper || a.tax_wrapper === 'None' || a.tax_wrapper === 'ISA' || a.tax_wrapper === 'GIA')
           ),
           illiquid: accs.filter(a => 
-              (a.tax_wrapper === 'Pension' || a.tax_wrapper === 'LISA' || a.account_type === 'Property' || a.account_type === 'Main Residence') && 
-              a.account_type !== 'RSU Grant'
+              ((a.tax_wrapper === 'Pension' || a.tax_wrapper === 'LISA' || a.account_type === 'Property' || a.account_type === 'Main Residence') && a.account_type !== 'RSU Grant')
           ),
           liabilities: accs.filter(a => a.account_type === 'Mortgage' || a.account_type === 'Loan'),
           unvested: accs.filter(a => a.account_type === 'RSU Grant')
@@ -322,6 +276,6 @@ export const useSimulationStore = defineStore('simulation', () => {
   return {
     activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
     loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides,
-    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline, runSimulation, reorderRules
+    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline
   }
 })
