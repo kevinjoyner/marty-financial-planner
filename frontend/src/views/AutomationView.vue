@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import draggable from 'vuedraggable'
-import { Workflow, GripVertical, ArrowRight, Plus, Pencil, FileText, Home } from 'lucide-vue-next'
+import { Workflow, GripVertical, ArrowRight, Plus, Pencil, FileText, Home, ShieldCheck, Power, Briefcase } from 'lucide-vue-next'
 import { useSimulationStore } from '../stores/simulation'
+import { api } from '../services/api'
 import Drawer from '../components/Drawer.vue'
 import Modal from '../components/Modal.vue'
 import PinToggle from '../components/PinToggle.vue'
@@ -11,26 +12,37 @@ import MortgageAnalysis from '../components/MortgageAnalysis.vue'
 import { formatCurrency } from '../utils/format'
 
 const store = useSimulationStore()
+// Automation Rules State
 const editingItem = ref(null)
 const showAudit = ref(false)
 const showMortgage = ref(false)
 const form = ref({})
 const localRules = ref([])
 
+// Decumulation State
+const strategies = ref([])
+const editingStrategy = ref(null)
+const strategyForm = ref({})
+
 onMounted(async () => {
     if (!store.scenario) await store.init()
-    if (store.scenario) localRules.value = [...store.scenario.automation_rules].sort((a,b) => a.priority - b.priority)
+    if (store.scenario) {
+        localRules.value = [...store.scenario.automation_rules].sort((a,b) => a.priority - b.priority)
+        loadStrategies()
+    }
 })
 
 watch(() => store.scenario, (newScenario) => {
     if (newScenario) {
         localRules.value = [...newScenario.automation_rules].sort((a,b) => a.priority - b.priority)
+        loadStrategies()
     }
 })
 
 const accountOptions = computed(() => store.scenario?.accounts.map(a => ({ id: a.id, name: a.name })) || [])
 const getAccountName = (id) => { const acc = accountOptions.value.find(a => a.id === id); return acc ? acc.name : '?' }
 
+// --- Standard Rules Logic ---
 const openEdit = (rule) => { 
     editingItem.value = rule; 
     form.value = { 
@@ -48,21 +60,15 @@ const openNew = () => {
         trigger_value: 0, 
         cadence: 'monthly', 
         priority: localRules.value.length,
-        start_date: new Date().toISOString().split('T')[0], // Default to today
+        start_date: new Date().toISOString().split('T')[0],
         end_date: null
     }; 
 }
 
 const save = async () => {
     const payload = { ...form.value }
-    // Store handles conversion
     payload.trigger_value = payload.trigger_value ? parseFloat(payload.trigger_value) : 0;
-    
-    if (payload.rule_type === 'mortgage_smart') {
-         payload.transfer_value = payload.transfer_value ? parseFloat(payload.transfer_value) : 0;
-    } else {
-         payload.transfer_value = payload.transfer_value ? parseFloat(payload.transfer_value) : 0;
-    }
+    payload.transfer_value = payload.transfer_value ? parseFloat(payload.transfer_value) : 0;
     
     await store.saveEntity('rule', editingItem.value.id, payload)
     editingItem.value = null
@@ -72,32 +78,150 @@ const remove = async () => {
     const success = await store.deleteEntity('rule', editingItem.value.id);
     if (success) editingItem.value = null;
 }
+
+// --- Decumulation Logic ---
+const loadStrategies = async () => {
+    if (!store.activeScenarioId) return;
+    try {
+        strategies.value = await api.getStrategies(store.activeScenarioId);
+    } catch (e) { console.error("Failed to load strategies", e) }
+}
+
+const createDefaultStrategy = async () => {
+    if (!store.activeScenarioId) return;
+    try {
+        const payload = {
+            name: "Retirement Drawdown",
+            strategy_type: "Standard",
+            enabled: true,
+            start_date: new Date().toISOString().split('T')[0]
+        };
+        await api.createStrategy(store.activeScenarioId, payload);
+        await loadStrategies();
+        store.runBaseline(); // REFRESH DATA
+    } catch (e) { alert("Failed to create strategy: " + e.message) }
+}
+
+const openStrategyEdit = (s) => {
+    editingStrategy.value = s;
+    strategyForm.value = { ...s };
+}
+
+const saveStrategy = async () => {
+    if (!store.activeScenarioId || !editingStrategy.value) return;
+    try {
+        await api.updateStrategy(store.activeScenarioId, editingStrategy.value.id, strategyForm.value);
+        editingStrategy.value = null;
+        await loadStrategies();
+        store.runBaseline(); // REFRESH DATA
+    } catch (e) { alert("Update failed") }
+}
+
+const toggleStrategy = async (s) => {
+    try {
+        await api.updateStrategy(store.activeScenarioId, s.id, { ...s, enabled: !s.enabled });
+        await loadStrategies();
+        store.runBaseline(); // REFRESH DATA
+    } catch (e) { console.error(e) }
+}
+
+const deleteStrategy = async () => {
+    if (!confirm("Delete this strategy configuration?")) return;
+    try {
+        await api.deleteStrategy(store.activeScenarioId, editingStrategy.value.id);
+        editingStrategy.value = null;
+        await loadStrategies();
+        store.runBaseline(); // REFRESH DATA
+    } catch (e) { alert("Delete failed") }
+}
 </script>
 
 <template>
     <div class="flex flex-col h-full max-w-4xl mx-auto w-full pb-24">
         <header class="mb-8 flex justify-between items-center">
-            <div><h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Automation Rules</h1><p class="text-sm text-slate-500 mt-1">Drag to prioritize logic.</p></div>
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Automation Rules</h1>
+                <p class="text-sm text-slate-500 mt-1">Define how money moves automatically.</p>
+            </div>
             <div class="flex gap-2">
                 <button @click="showMortgage = true" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-md hover:bg-slate-50 transition-colors shadow-sm"><Home class="w-4 h-4" /> Mortgage Report</button>
                 <button @click="showAudit = true" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-md hover:bg-slate-50 transition-colors shadow-sm"><FileText class="w-4 h-4" /> Audit Log</button>
                 <button @click="openNew" class="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 transition-colors"><Plus class="w-4 h-4" /> New Rule</button>
             </div>
         </header>
-        <div v-if="localRules.length === 0" class="text-center py-12 text-slate-400 italic">No automation rules defined.</div>
-        <div v-else class="bg-slate-50 border border-slate-200 rounded-xl p-1">
+        
+        <div v-if="localRules.length === 0" class="text-center py-8 text-slate-400 italic bg-slate-50 rounded-lg border border-dashed border-slate-200 mb-8">
+            No transfer rules defined.
+        </div>
+        <div v-else class="bg-slate-50 border border-slate-200 rounded-xl p-1 mb-8">
             <draggable v-model="localRules" item-key="id" class="space-y-2" ghost-class="opacity-50">
                 <template #item="{element}">
-                    <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 group cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors">
+                    <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 group cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors">
                         <div class="text-slate-300 group-hover:text-slate-500"><GripVertical class="w-5 h-5" /></div>
-                        <div class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0"><Workflow class="w-5 h-5" /></div>
-                        <div class="flex-1 min-w-0"><h3 class="text-sm font-semibold text-slate-900">{{ element.name }}</h3><div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5"><span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-mono uppercase">{{ element.rule_type }}</span><span>{{ getAccountName(element.source_account_id) }}</span><ArrowRight class="w-3 h-3" /><span>{{ getAccountName(element.target_account_id) }}</span></div></div>
-                        <div class="text-right flex items-center gap-4"><div><div class="text-xs text-slate-400 uppercase font-bold tracking-wide">Trigger</div><div class="text-sm font-mono text-slate-700">{{ formatCurrency(element.trigger_value) }}</div></div><button @click="openEdit(element)" class="p-1.5 text-slate-300 hover:text-primary hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button></div>
+                        <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0"><Workflow class="w-5 h-5" /></div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-semibold text-slate-900">{{ element.name }}</h3>
+                            <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                                <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-mono uppercase">{{ element.rule_type }}</span>
+                                <span>{{ getAccountName(element.source_account_id) }}</span>
+                                <ArrowRight class="w-3 h-3" />
+                                <span>{{ getAccountName(element.target_account_id) }}</span>
+                            </div>
+                        </div>
+                        <div class="text-right flex items-center gap-4">
+                            <div><div class="text-xs text-slate-400 uppercase font-bold tracking-wide">Trigger</div><div class="text-sm font-mono text-slate-700">{{ formatCurrency(element.trigger_value) }}</div></div>
+                            <button @click="openEdit(element)" class="p-1.5 text-slate-300 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button>
+                        </div>
                     </div>
                 </template>
             </draggable>
         </div>
-        <div class="mt-4 text-xs text-slate-400 text-center">Rules execute top-to-bottom every month.</div>
+
+        <div class="border-t border-slate-200 pt-8">
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                        <ShieldCheck class="w-5 h-5 text-emerald-600" />
+                        Decumulation & Safety Nets
+                    </h2>
+                    <p class="text-sm text-slate-500 mt-1">
+                        Strategies to automatically sell assets if Cash runs out.
+                    </p>
+                </div>
+                <button v-if="strategies.length === 0" @click="createDefaultStrategy" class="text-sm text-blue-600 hover:underline font-medium">
+                    + Enable Decumulation
+                </button>
+            </div>
+
+            <div v-if="strategies.length > 0" class="space-y-2">
+                <div v-for="s in strategies" :key="s.id" class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm flex items-center gap-4 group">
+                    <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                        <Briefcase class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-semibold text-slate-900">{{ s.name }}</h3>
+                        <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5 font-mono">
+                            <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{{ s.strategy_type }}</span>
+                            <span v-if="s.start_date">From: {{ s.start_date }}</span>
+                            <span v-if="s.end_date">Until: {{ s.end_date }}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Hierarchy: GIA (Taxed) &rarr; ISA (Tax Free) &rarr; Pension (Taxed)</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="toggleStrategy(s)" :title="s.enabled ? 'Disable' : 'Enable'"
+                            :class="`p-2 rounded-md transition-colors ${s.enabled ? 'text-emerald-600 bg-emerald-50' : 'text-slate-300 hover:text-emerald-600 hover:bg-slate-50'}`">
+                            <Power class="w-4 h-4" />
+                        </button>
+                        <button @click="openStrategyEdit(s)" class="p-2 text-slate-300 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-all">
+                            <Pencil class="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-sm text-slate-400">
+                No safety net strategies active.
+            </div>
+        </div>
         
         <Drawer :isOpen="!!editingItem" :title="editingItem?.name || 'Edit Rule'" @close="editingItem = null" @save="save">
             <div v-if="editingItem" class="space-y-4">
@@ -129,6 +253,37 @@ const remove = async () => {
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea v-model="form.notes" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></textarea></div>
                 <div class="pt-6 border-t border-slate-100">
                     <button type="button" @click="remove" class="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors">Delete Rule</button>
+                </div>
+            </div>
+        </Drawer>
+
+        <Drawer :isOpen="!!editingStrategy" title="Configure Strategy" @close="editingStrategy = null" @save="saveStrategy">
+            <div v-if="editingStrategy" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Strategy Name</label>
+                    <input type="text" v-model="strategyForm.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded-md text-xs text-blue-700 border border-blue-100">
+                    <strong>Standard Hierarchy:</strong><br>
+                    1. <strong>GIA:</strong> Sell investments subject to Capital Gains Tax first.<br>
+                    2. <strong>ISA:</strong> Sell tax-free investments second.<br>
+                    3. <strong>Pension:</strong> Sell taxable pension pots last (if age &ge; 57).
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                        <input type="date" v-model="strategyForm.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                        <input type="date" v-model="strategyForm.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </div>
+                </div>
+                
+                <div class="pt-6 border-t border-slate-100">
+                    <button type="button" @click="deleteStrategy" class="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors">Delete Strategy</button>
                 </div>
             </div>
         </Drawer>
