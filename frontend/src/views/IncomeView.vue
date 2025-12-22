@@ -56,11 +56,10 @@ const openCreate = () => {
 }
 
 const save = async () => {
+    // FIX: Do NOT multiply by 100 here. The Store handles it.
     const payload = { ...form.value };
-    if (payload.salary_sacrifice_value) payload.salary_sacrifice_value = Math.round(payload.salary_sacrifice_value * 100);
-    if (payload.taxable_benefit_value) payload.taxable_benefit_value = Math.round(payload.taxable_benefit_value * 100);
-    if (payload.employer_pension_contribution) payload.employer_pension_contribution = Math.round(payload.employer_pension_contribution * 100);
-
+    
+    // We pass the raw "Pound" values to the store.
     const success = await store.saveEntity('income', editingItem.value.id, payload, `Saved ${form.value.name}`)
     if (success) editingItem.value = null
 }
