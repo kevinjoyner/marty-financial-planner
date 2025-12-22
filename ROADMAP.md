@@ -7,7 +7,7 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 ### Backend (The Brain)
 * **Framework:** Python / FastAPI.
 * **Database:** SQLite (dev) / PostgreSQL (prod) via SQLAlchemy.
-* **Engine:** Pure Python logic `app/engine.py`. Stateless projection capabilities.
+* **Engine:** Pure Python logic `app/engine`. Stateless projection capabilities.
 * **API Design:** RESTful. 
     * `/scenarios`: CRUD for persistent data.
     * `/project`: **Simulation Endpoint**. Accepts a Scenario ID + a JSON body of `overrides`. Returns the projection array. Does *not* write to DB.
@@ -58,6 +58,9 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 ### Phase 12: Simulation Control
 - [x] **1.1 Save Simulation:** "Fork" a set of temporary overrides into a brand new permanent Scenario.
 
+### Phase 13: Technical Debt & Refactoring
+- [x] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g., `IncomeProcessor`, `MortgageProcessor`, `TaxProcessor`) to allow for unit testing and safe extension.
+
 ### Phase 14: Deep Domain Logic (Decumulation)
 *Refining the financial engine fidelity and lifecycle planning.*
 - [x] **2.1 Owner Specifics:** DOB-driven logic for Pension Access Age (57+ rule).
@@ -68,15 +71,13 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 
 ## Upcoming Phases (Prioritized)
 
-### 1. Phase 13: Technical Debt & Refactoring
-*Preparing the engine for scale and complexity.*
-- [ ] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g., `IncomeProcessor`, `MortgageProcessor`, `TaxProcessor`) to allow for unit testing and safe extension.
-- [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer to prevent floating-point/integer errors.
-
-### 2. Phase 16: Governance & Insight
+### 1. Phase 16: Governance & Insight
 *Making the "Black Box" transparent and strategic.*
 - [ ] **5.1 Tax Regime Transparency:** UI for viewing and editing Tax Bands, Rates, and Limits (moving hardcoded logic to editable data).
 - [ ] **5.2 Strategy Audit Report:** A narrative report explaining *how* the scenario is optimizing tax (e.g., "Utilizing 100% of ISA allowance to save £X in future tax").
+
+### 2. Phase 13 (Continued): Technical Debt
+- [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer to prevent floating-point/integer errors.
 
 ### 3. Phase 12b: Probabilistic Modelling (Advanced Mode)
 *Addressing uncertainty.*
