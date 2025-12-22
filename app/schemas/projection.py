@@ -58,6 +58,10 @@ class Projection(BaseModel):
     rule_logs: List[RuleExecutionLog] = [] 
     mortgage_stats: List[MortgageStat] = []
 
+# Added to support the Engine's return type which includes metadata
+class ProjectionResult(Projection):
+    metadata: Optional[Dict[str, Any]] = {}
+
 # --- INPUT SCHEMAS (SIMULATION) ---
 class SimulationOverride(BaseModel):
     type: str  

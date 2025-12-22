@@ -7,6 +7,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
+    """
+    Process RSU vesting events.
+    Handles 'monthly' and 'quarterly' vesting cadences.
+    """
     for acc in context.all_accounts:
         if acc.account_type != enums.AccountType.RSU_GRANT: continue
         
@@ -19,14 +23,20 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
             current_month = context.month_start
             grant_date = acc.grant_date
             
-            cadence = getattr(acc, 'vesting_cadence', 'monthly') or 'monthly'
+            # Robust Cadence Get
+            cadence = getattr(acc, 'vesting_cadence', 'monthly')
+            if hasattr(cadence, 'value'): cadence = cadence.value
+            cadence = str(cadence) if cadence else 'monthly'
+            
             is_quarterly = (cadence == 'quarterly')
             
             delta = relativedelta(current_month, grant_date)
             months_elapsed = delta.years * 12 + delta.months
             
             if months_elapsed <= 0: continue
-            if is_quarterly and (months_elapsed % 3 != 0): continue
+
+            if is_quarterly and (months_elapsed % 3 != 0): 
+                continue
 
             target_vested_percent = 0.0
             sorted_schedule = sorted(schedule, key=lambda x: x.get('year', 99))
@@ -42,19 +52,29 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
                     target_vested_percent += percent
                 elif months_elapsed > year_start_month:
                     months_into_year = months_elapsed - year_start_month
-                    fraction = months_into_year / 12.0
+                    fraction = months_into_year / 12.0 # Simple linear for both
                     target_vested_percent += (percent * fraction)
                     break 
                 previous_years_end_month = year_end_month
 
-            original_units = acc.starting_balance 
+            # --- FIX: Divide stored balance by 100 to get actual units ---
+            # DB stores '401' as '40100' (pence logic). We need '401'.
+            original_units = acc.starting_balance / 100.0
+            
             target_remaining_units = int(original_units * (1.0 - (target_vested_percent / 100.0)))
-            current_units = context.account_balances.get(acc.id, 0)
+            
+            # Fetch current balance (units * 100) from Simulation State
+            current_units_raw = context.account_balances.get(acc.id, 0)
+            current_units = current_units_raw / 100.0
+            
             units_to_vest = current_units - target_remaining_units
             
             if units_to_vest > current_units: units_to_vest = current_units
             if units_to_vest <= 0: continue
 
+            # Calculate Value
+            # Price is in Pence (e.g. 1000p = £10). 
+            # Value = Units * Price (Pence) = Pence Value
             price_gbp = unit_price 
             if acc.currency == enums.Currency.USD:
                 rate = scenario.gbp_to_usd_rate if scenario.gbp_to_usd_rate and scenario.gbp_to_usd_rate > 0 else 1.25
@@ -65,8 +85,9 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
             growth_factor = (1 + growth_rate) ** years_float
             current_price_gbp = int(price_gbp * growth_factor)
             
-            gross_value = units_to_vest * current_price_gbp 
+            gross_value = int(units_to_vest * current_price_gbp)
             
+            # Tax Logic
             owner_id = acc.owners[0].id if acc.owners else None
             tax_deducted = 0
             ni_deducted = 0
@@ -81,12 +102,17 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
                 
                 tax_deducted = income_tax_due
                 ni_deducted = ni_due
+                
                 context.ytd_earnings[owner_id]['taxable'] += gross_value
                 context.flows[acc.id]['tax'] += (tax_deducted + ni_deducted) / 100.0
 
             net_proceeds = gross_value - tax_deducted - ni_deducted
             
-            context.account_balances[acc.id] -= units_to_vest
+            # Execute Movements
+            # We deduct units (x100) from RSU account
+            units_to_remove_raw = int(units_to_vest * 100)
+            context.account_balances[acc.id] -= units_to_remove_raw
+            
             target_id = acc.rsu_target_account_id
             if target_id and target_id in context.account_balances:
                 context.account_balances[target_id] += net_proceeds
