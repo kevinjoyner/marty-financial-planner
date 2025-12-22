@@ -4,11 +4,10 @@ import { api } from '../services/api'
 
 export const useSimulationStore = defineStore('simulation', () => {
   
-  // Persistence: Active Scenario
+  // Persistence
   const savedId = localStorage.getItem('marty_active_scenario_id')
   const activeScenarioId = ref(savedId ? parseInt(savedId) : null)
   
-  // Persistence: Simulation Horizon (Months)
   const savedMonths = localStorage.getItem('marty_simulation_months')
   const simulationMonths = ref(savedMonths ? parseInt(savedMonths) : 120)
 
@@ -22,7 +21,6 @@ export const useSimulationStore = defineStore('simulation', () => {
   const simulationData = ref(null)
   const history = ref([])
 
-  // Watchers for Persistence
   watch(activeScenarioId, (newVal) => {
       if (newVal) localStorage.setItem('marty_active_scenario_id', newVal)
   })
@@ -71,8 +69,6 @@ export const useSimulationStore = defineStore('simulation', () => {
         }));
   }
 
-  // --- CORE PROJECTION FUNCTIONS ---
-
   async function runBaseline() {
       const res = await api.runProjection(activeScenarioId.value, simulationMonths.value, []);
       baselineData.value = res;
@@ -95,8 +91,6 @@ export const useSimulationStore = defineStore('simulation', () => {
     } catch (e) { console.error("Sim failed", e); }
   }
 
-  // --------------------------------
-
   async function setDuration(months) {
       simulationMonths.value = months;
       await runBaseline();
@@ -104,10 +98,6 @@ export const useSimulationStore = defineStore('simulation', () => {
 
   async function saveEntity(type, id, data, description = "Update") {
       isInternalLoading.value = true;
-      
-      // HISTORY SNAPSHOT
-      // We snapshot BEFORE the change.
-      // This allows 'Restoring' to the state prior to this save.
       if (scenario.value) { 
           history.value.unshift({
               timestamp: new Date(),
@@ -157,11 +147,29 @@ export const useSimulationStore = defineStore('simulation', () => {
       finally { isInternalLoading.value = false; }
   }
 
+  async function reorderRules(orderedIds) {
+      isInternalLoading.value = true;
+      // History Snapshot for Reorder
+      if (scenario.value) {
+          history.value.unshift({
+              timestamp: new Date(),
+              description: "Reordered Rules",
+              scenarioSnapshot: JSON.parse(JSON.stringify(scenario.value))
+          });
+          if (history.value.length > 20) history.value.pop();
+      }
+      try {
+          await api.reorderRules(orderedIds);
+          await loadScenario();
+          await runBaseline();
+      } catch (e) { console.error("Reorder failed", e); }
+      finally { isInternalLoading.value = false; }
+  }
+
   async function deleteEntity(type, id) {
       if (!confirm("Are you sure you want to delete this?")) return false;
       isInternalLoading.value = true;
       
-      // HISTORY SNAPSHOT FOR DELETION
       if (scenario.value) { 
           history.value.unshift({
               timestamp: new Date(),
@@ -271,6 +279,6 @@ export const useSimulationStore = defineStore('simulation', () => {
   return {
     activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
     loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides,
-    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline, runSimulation
+    activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline, runSimulation, reorderRules
   }
 })
