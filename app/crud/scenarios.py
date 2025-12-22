@@ -171,6 +171,15 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
         if rule.target_account_id in account_map: new_rule.target_account_id = account_map[rule.target_account_id].id
         db.add(new_rule)
     
+    # Decumulation Strategies (Missing in previous version)
+    for strat in original.decumulation_strategies:
+        s_data = {c.name: getattr(strat, c.name) for c in strat.__table__.columns if c.name not in ['id', 'scenario_id']}
+        if hasattr(strat, 'enabled'):
+             s_data['enabled'] = get_overridden_val('strategy', strat.id, 'enabled', s_data.get('enabled'))
+        
+        db.add(models.DecumulationStrategy(scenario_id=new_scenario.id, **s_data))
+
+    # Annotations
     for ann in original.chart_annotations:
         db.add(models.ChartAnnotation(scenario_id=new_scenario.id, date=ann.date, label=ann.label, annotation_type=ann.annotation_type))
 
@@ -292,6 +301,17 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             to_acc = account_map.get(t.get("to_account_id"))
             if from_acc and to_acc:
                 db.add(models.Transfer(scenario_id=scenario.id, from_account_id=from_acc, to_account_id=to_acc, name=t["name"], value=t["value"], cadence=t["cadence"], start_date=_safe_parse_date(t["start_date"]), end_date=_safe_parse_date(t.get("end_date")), show_on_chart=t.get("show_on_chart", False)))
+
+    if "decumulation_strategies" in data:
+        for s in data["decumulation_strategies"]:
+            db.add(models.DecumulationStrategy(
+                scenario_id=scenario.id,
+                name=s["name"],
+                strategy_type=s.get("strategy_type", "Standard"),
+                start_date=_safe_parse_date(s.get("start_date")),
+                end_date=_safe_parse_date(s.get("end_date")),
+                enabled=s.get("enabled", True)
+            ))
 
     if "chart_annotations" in data:
         for ann in data["chart_annotations"]:
