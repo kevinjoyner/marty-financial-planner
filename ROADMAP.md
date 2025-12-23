@@ -73,7 +73,8 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 ### Phase 15: Stability & Data Recovery (Mission 1)
 *Immediate remediation of data ingest and legacy compatibility.*
 - [ ] **15.1 Legacy Migration Adapter:** Implement an interceptor layer in the JSON Import flow to detect schema drift (missing `vesting_schedule`, `strategy` fields) and apply default sanitization before Pydantic validation.
-- [ ] **15.2 Schema Validation:** Enforce strict checks on import to prevent "silent failures" or corrupted state in the DB.
+- [ ] **15.2 Strict Schema Validation:** Replace `List[Dict[str, Any]]` in `ScenarioImport` with strict Pydantic models for nested entities (`owners`, `accounts`, etc.). This ensures API contracts are explicit and validation occurs at the boundary, returning 422s instead of 500s.
+- [ ] **15.3 Transactional Integrity:** Implement a "Shadow Copy" strategy for imports. Write new scenario data to a staging area and verify complete success before swapping the active record pointer, preventing data loss on failed updates.
 
 ### Phase 16: The "Pence" Standard (Mission 3)
 *Eliminating floating-point ambiguity across the stack.*
@@ -81,6 +82,7 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 - [ ] **16.2 Strict Types:** Introduce `Money = NewType('Money', int)` to enforce integer-only currency passing in Pydantic models.
 - [ ] **16.3 Calculation Precision:** Refactor the Engine to use `decimal.Decimal` for all intermediate rate multiplications (Growth, Tax, Interest) before rounding back to Integer Pence.
 - [ ] **16.4 API Consistency:** Ensure all API responses return Pence (Integers). Frontend becomes solely responsible for formatting to Pounds.
+- [ ] **16.5 Logic Centralization:** Migrate business logic (e.g., Account Categorization "Liquid vs Illiquid", Rounding rules) from Frontend stores (`simulation.js`) to Backend computed properties or response fields. Ensure the Frontend is purely a view layer.
 
 ### Phase 17: Architectural Layering & Test Coverage (Mission 2)
 *Decoupling the Engine from the Database to enable robust testing.*
