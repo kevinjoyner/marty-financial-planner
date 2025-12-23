@@ -267,7 +267,6 @@ const goToPeople = () => router.push('/tax')
                                 <select v-model="form.vesting_cadence" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                                     <option value="monthly">Monthly</option>
                                     <option value="quarterly">Quarterly</option>
-                                    <option value="annually">Annually</option>
                                 </select>
                             </div>
                             <div>
