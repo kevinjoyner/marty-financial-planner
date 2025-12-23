@@ -3,8 +3,10 @@ from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from ..enums import AccountType, Cadence, Currency, TaxWrapper
 from .shared import AccountBase, OwnerBase
-from .items import IncomeSource, Cost, FinancialEvent, Transfer, ChartAnnotation
+from .items import Cost, FinancialEvent, Transfer, ChartAnnotation
 from .rules import AutomationRule
+from .owners import Owner, IncomeSource
+from .accounts import Account
 
 class SimulationOverrideBase(BaseModel):
     type: str  
@@ -41,66 +43,6 @@ class DecumulationStrategyBase(BaseModel):
 class DecumulationStrategy(DecumulationStrategyBase):
     id: int
     scenario_id: int
-    model_config = ConfigDict(from_attributes=True)
-
-class AccountCreate(AccountBase):
-    owner_ids: List[int]
-    scenario_id: int
-
-class AccountUpdate(BaseModel):
-    name: Optional[str] = None
-    notes: Optional[str] = None
-    account_type: Optional[AccountType] = None
-    tax_wrapper: Optional[TaxWrapper] = None
-    starting_balance: Optional[int] = None
-    book_cost: Optional[int] = None 
-    min_balance: Optional[int] = None 
-    interest_rate: Optional[float] = None
-    original_loan_amount: Optional[int] = None
-    amortisation_period_years: Optional[int] = None
-    mortgage_start_date: Optional[date] = None
-    fixed_rate_period_years: Optional[int] = None
-    fixed_interest_rate: Optional[float] = None
-    is_primary_account: Optional[bool] = None
-    currency: Optional[Currency] = None
-    payment_from_account_id: Optional[int] = None
-    
-    # RSU Fields
-    rsu_target_account_id: Optional[int] = None
-    vesting_schedule: Optional[List[dict]] = None
-    grant_date: Optional[date] = None 
-    unit_price: Optional[int] = None
-    vesting_cadence: Optional[str] = None
-    
-    owner_ids: Optional[List[int]] = None
-
-class OwnerInAccount(OwnerBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-
-class Account(AccountBase):
-    id: int
-    owners: List[OwnerInAccount] = []
-    model_config = ConfigDict(from_attributes=True)
-
-class AccountInOwner(AccountBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-
-class OwnerCreate(OwnerBase):
-    scenario_id: int
-
-class OwnerUpdate(BaseModel):
-    name: Optional[str] = None
-    notes: Optional[str] = None
-    scenario_id: Optional[int] = None
-    birth_date: Optional[date] = None
-    retirement_age: Optional[int] = None
-
-class Owner(OwnerBase):
-    id: int
-    accounts: List[AccountInOwner] = []
-    income_sources: List[IncomeSource] = []
     model_config = ConfigDict(from_attributes=True)
 
 class ScenarioBase(BaseModel):

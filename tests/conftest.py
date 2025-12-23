@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+from app import models  # Ensure models are imported before creating tables
 
 # In-Memory Database with StaticPool for test isolation
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
