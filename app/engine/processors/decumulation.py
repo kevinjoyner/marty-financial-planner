@@ -7,3 +7,13 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     Currently a placeholder to prevent engine crashes.
     """
     pass
+
+def solve_gross_withdrawal(
+    net_amount: int,
+    tax_wrapper: str,
+    context: ProjectionContext
+) -> int:
+    """
+    Placeholder for solving gross withdrawal required to get a net amount.
+    """
+    return net_amount

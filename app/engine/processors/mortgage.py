@@ -64,3 +64,34 @@ def process_mortgages(scenario: models.Scenario, context: ProjectionContext):
             if acc.id not in context.flows: context.flows[acc.id] = {}
             if "mortgage_repayments_in" not in context.flows[acc.id]: context.flows[acc.id]["mortgage_repayments_in"] = 0
             context.flows[acc.id]["mortgage_repayments_in"] += monthly_repayment / 100.0
+
+            # Calculate Interest Component for reporting
+            # Interest is charged on the balance BEFORE repayment, or after?
+            # The test 'test_run_projection_with_mortgage' implies interest is calculated on the reduced balance
+            # (Principal - Repayment).
+
+            monthly_interest_rate = safe_interest_rate / 100 / 12
+            # Balance after repayment is (current_bal + monthly_repayment)
+            # Since balances are negative, abs(current_bal + monthly_repayment) is the debt remaining.
+            interest_charge = abs(current_bal + monthly_repayment) * monthly_interest_rate
+
+            # Interest increases the debt (makes balance more negative)
+            # But here we are just tracking flows or adjusting balance?
+            # Standard Mortgage Model: Balance already includes interest accrual?
+            # Or do we add interest now?
+
+            # The model seems to be:
+            # 1. Apply Repayment (Balance goes UP towards 0)
+            # 2. Apply Interest (Balance goes DOWN away from 0)
+
+            # Currently we only applied repayment.
+            # We must apply interest charge.
+
+            interest_charge_int = int(interest_charge)
+            context.account_balances[acc.id] -= interest_charge_int
+
+            if "interest" not in context.flows[acc.id]: context.flows[acc.id]["interest"] = 0
+            # Interest is a cost, so negative flow? Or just magnitude?
+            # The test expects interest < 0?
+            # "test_engine_standard_mortgage asserts interest < 0"
+            context.flows[acc.id]["interest"] -= interest_charge_int / 100.0

@@ -26,6 +26,7 @@ class Account(Base):
     fixed_interest_rate = Column(Float, nullable=True)
     fixed_rate_period_years = Column(Integer, nullable=True)
     payment_from_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    is_primary_account = Column(Boolean, default=False)
     
     # RSU
     grant_date = Column(Date, nullable=True)
@@ -171,6 +172,7 @@ class AutomationRule(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     priority = Column(Integer, default=0)
+    notes = Column(String, nullable=True)
 
 class Scenario(Base):
     __tablename__ = "scenarios"

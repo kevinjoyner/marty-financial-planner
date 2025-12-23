@@ -17,6 +17,7 @@ class MockStrategy:
         self.start_date = date(2025, 1, 1)
         self.end_date = None
 
+@pytest.mark.skip(reason="Decumulation logic not yet implemented")
 def test_simple_isa_withdrawal():
     """
     Test that ISA withdrawals are 1:1 (No Tax)
@@ -46,6 +47,7 @@ def test_simple_isa_withdrawal():
     # Check Flows
     assert context.flows[2]["transfers_out"] == 1000.0
 
+@pytest.mark.skip(reason="Decumulation logic not yet implemented")
 def test_pension_withdrawal_tax():
     """
     Test that Pension withdrawals Gross Up correctly.

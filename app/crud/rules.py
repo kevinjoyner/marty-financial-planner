@@ -19,7 +19,8 @@ def create_rule(db: Session, rule: schemas.AutomationRuleCreate):
 def update_rule(db: Session, rule_id: int, rule: schemas.AutomationRuleUpdate):
     db_rule = get_rule(db, rule_id)
     if not db_rule: return None
-    create_scenario_snapshot(db, db_rule.scenario_id, f"Update Rule: {db_rule.rule_type.value}")
+    # db_rule.rule_type is stored as a string in the DB, so we use it directly
+    create_scenario_snapshot(db, db_rule.scenario_id, f"Update Rule: {db_rule.rule_type}")
     update_data = rule.model_dump(exclude_unset=True)
     if 'rule_type' in update_data and update_data['rule_type']: update_data['rule_type'] = update_data['rule_type'].value
     if 'cadence' in update_data and update_data['cadence']: update_data['cadence'] = update_data['cadence'].value
@@ -32,7 +33,8 @@ def update_rule(db: Session, rule_id: int, rule: schemas.AutomationRuleUpdate):
 def delete_rule(db: Session, rule_id: int):
     db_rule = get_rule(db, rule_id)
     if not db_rule: return None
-    create_scenario_snapshot(db, db_rule.scenario_id, f"Delete Rule: {db_rule.rule_type.value}")
+    # db_rule.rule_type is stored as a string in the DB, so we use it directly
+    create_scenario_snapshot(db, db_rule.scenario_id, f"Delete Rule: {db_rule.rule_type}")
     db.delete(db_rule)
     db.commit()
     return db_rule
