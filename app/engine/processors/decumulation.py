@@ -10,7 +10,7 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     1. Identify Cash accounts with negative balance.
     2. Sum total deficit.
     3. Withdraw from liquid assets to cover deficit.
-       Priority: ISA -> GIA (Investments) -> Pension.
+       Priority: GIA (Investments) -> ISA -> Pension.
     """
     # 1. Calculate Deficit in Cash Accounts
     total_deficit = 0
@@ -47,8 +47,26 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
              elif wrapper == "General Investment Account" or wrapper == "None" or wrapper is None:
                  gias.append(acc)
 
-    # 3. Withdraw Logic (Simplified Priority: ISA -> GIA -> Pension)
+    # 3. Withdraw Logic (Revised Priority: GIA -> ISA -> Pension)
     remaining_deficit = total_deficit
+
+    # Process GIAs (Capital Gains Tax - Simplified: Assume Cash Basis / No Tax for this step unless we implement CGT logic)
+    for acc in gias:
+        if remaining_deficit <= 0: break
+        available = context.account_balances.get(acc.id, 0)
+        to_withdraw = min(available, remaining_deficit)
+
+        context.account_balances[acc.id] -= to_withdraw
+        remaining_deficit -= to_withdraw
+
+        target_acc = cash_accounts[0]
+        context.account_balances[target_acc.id] += to_withdraw
+
+        if acc.id not in context.flows: context.flows[acc.id] = {}
+        if "transfers_out" not in context.flows[acc.id]: context.flows[acc.id]["transfers_out"] = 0
+        context.flows[acc.id]["transfers_out"] += to_withdraw / 100.0
+
+    if remaining_deficit <= 0: return
 
     # Process ISAs (Tax Free)
     for acc in isas:
@@ -71,25 +89,6 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
         if target_acc.id not in context.flows: context.flows[target_acc.id] = {}
         if "transfers_in" not in context.flows[target_acc.id]: context.flows[target_acc.id]["transfers_in"] = 0
         context.flows[target_acc.id]["transfers_in"] += to_withdraw / 100.0
-
-    if remaining_deficit <= 0: return
-
-    # Process GIAs (Capital Gains Tax - Simplified: Assume Cash Basis / No Tax for this step unless we implement CGT logic)
-    # The brief implies specific focus on Pension Tax.
-    for acc in gias:
-        if remaining_deficit <= 0: break
-        available = context.account_balances.get(acc.id, 0)
-        to_withdraw = min(available, remaining_deficit)
-
-        context.account_balances[acc.id] -= to_withdraw
-        remaining_deficit -= to_withdraw
-
-        target_acc = cash_accounts[0]
-        context.account_balances[target_acc.id] += to_withdraw
-
-        if acc.id not in context.flows: context.flows[acc.id] = {}
-        if "transfers_out" not in context.flows[acc.id]: context.flows[acc.id]["transfers_out"] = 0
-        context.flows[acc.id]["transfers_out"] += to_withdraw / 100.0
 
     if remaining_deficit <= 0: return
 
@@ -122,7 +121,9 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
             tax_free_portion = int(to_withdraw_gross * 0.25)
             taxable_portion = to_withdraw_gross - tax_free_portion
 
-            ytd = context.ytd_earnings.get(owner_id, {'taxable': 0, 'ni': 0})
+            if owner_id not in context.ytd_earnings:
+                context.ytd_earnings[owner_id] = {'taxable': 0, 'ni': 0}
+            ytd = context.ytd_earnings[owner_id]
             current_taxable = ytd['taxable']
 
             tax_before = TaxService._calculate_income_tax(current_taxable / 100.0) * 100
