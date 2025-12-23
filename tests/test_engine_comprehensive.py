@@ -116,7 +116,8 @@ def test_engine_mortgage_smart_payment(db_session, client):
     final_point = projection.data_points[-1]
     mortgage_balance = final_point.account_balances[mortgage_acc.id]
 
-    assert mortgage_balance > -5000.0
+    # -5000.0 GBP = -500000 Pence
+    assert mortgage_balance > -500000
     assert mortgage_balance < 0
 
     smart_logs = [log for log in projection.rule_logs if "Smart Smooth" in log.reason]
@@ -153,9 +154,9 @@ def test_engine_sweep_rule(db_session, client):
     source_balance = final_point.account_balances[source_acc.id]
     target_balance = final_point.account_balances[target_acc.id]
 
-    # Expect balances in Pounds (Float)
-    assert source_balance == 1000.0
-    assert target_balance == 1000.0
+    # Expect balances in Pence
+    assert source_balance == 100000
+    assert target_balance == 100000
 
 def test_engine_cgt_on_transfer(db_session, client):
     db = db_session
@@ -254,4 +255,5 @@ def test_engine_standard_mortgage(db_session, client):
 
     assert repayment > 0
     assert interest < 0
-    assert 580 < repayment < 590
+    # Expected repayment around £584.59 -> 58459 pence
+    assert 58000 < repayment < 59000
