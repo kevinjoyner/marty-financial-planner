@@ -59,8 +59,8 @@ def detect_milestones(context: ProjectionContext):
             if acc.tax_wrapper == enums.TaxWrapper.PENSION:
                 continue
 
-            if curr_bal > 0: curr_liquid += curr_bal
-            if prev_bal > 0: prev_liquid += prev_bal
+            curr_liquid += curr_bal
+            prev_liquid += prev_bal
         elif acc.account_type in [enums.AccountType.MORTGAGE, enums.AccountType.LOAN]:
             if curr_bal < 0: curr_debt += abs(curr_bal)
             if prev_bal < 0: prev_debt += abs(prev_bal)
