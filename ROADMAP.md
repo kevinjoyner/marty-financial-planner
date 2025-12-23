@@ -58,35 +58,50 @@ Marty is a specialized **Single Page Application (SPA)** with a Python simulatio
 ### Phase 12: Simulation Control
 - [x] **1.1 Save Simulation:** "Fork" a set of temporary overrides into a brand new permanent Scenario.
 
-### Phase 13: Technical Debt & Refactoring
-- [x] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors (e.g., `IncomeProcessor`, `MortgageProcessor`, `TaxProcessor`) to allow for unit testing and safe extension.
+### Phase 13: Technical Debt & Refactoring (Initial)
+- [x] **13.1 Engine Deconstruction:** Refactor the monolithic `engine.py` into isolated Processors.
 
 ### Phase 14: Deep Domain Logic (Decumulation)
-*Refining the financial engine fidelity and lifecycle planning.*
 - [x] **2.1 Owner Specifics:** DOB-driven logic for Pension Access Age (57+ rule).
 - [x] **2.2 Decumulation Engine:** Strategies for "Standard" drawdown (GIA -> ISA -> Pension).
 - [x] **2.3 Solver:** Iterative Newton-Raphson solver for calculating gross withdrawals net of tax.
 
 ---
 
-## Upcoming Phases (Prioritized)
+## Upcoming Phases (Prioritized & Technical)
 
-### 1. Phase 16: Governance & Insight
-*Making the "Black Box" transparent and strategic.*
-- [ ] **5.1 Tax Regime Transparency:** UI for viewing and editing Tax Bands, Rates, and Limits (moving hardcoded logic to editable data).
-- [ ] **5.2 Strategy Audit Report:** A narrative report explaining *how* the scenario is optimizing tax (e.g., "Utilizing 100% of ISA allowance to save £X in future tax").
+### Phase 15: Stability & Data Recovery (Mission 1)
+*Immediate remediation of data ingest and legacy compatibility.*
+- [ ] **15.1 Legacy Migration Adapter:** Implement an interceptor layer in the JSON Import flow to detect schema drift (missing `vesting_schedule`, `strategy` fields) and apply default sanitization before Pydantic validation.
+- [ ] **15.2 Schema Validation:** Enforce strict checks on import to prevent "silent failures" or corrupted state in the DB.
 
-### 2. Phase 13 (Continued): Technical Debt
-- [ ] **13.2 Type Safety:** Stricter Pydantic/Typing enforcement across the calculation layer to prevent floating-point/integer errors.
+### Phase 16: The "Pence" Standard (Mission 3)
+*Eliminating floating-point ambiguity across the stack.*
+- [ ] **16.1 Audit & Standardization:** Identify all `int` -> `float` coercions.
+- [ ] **16.2 Strict Types:** Introduce `Money = NewType('Money', int)` to enforce integer-only currency passing in Pydantic models.
+- [ ] **16.3 Calculation Precision:** Refactor the Engine to use `decimal.Decimal` for all intermediate rate multiplications (Growth, Tax, Interest) before rounding back to Integer Pence.
+- [ ] **16.4 API Consistency:** Ensure all API responses return Pence (Integers). Frontend becomes solely responsible for formatting to Pounds.
 
-### 3. Phase 12b: Probabilistic Modelling (Advanced Mode)
+### Phase 17: Architectural Layering & Test Coverage (Mission 2)
+*Decoupling the Engine from the Database to enable robust testing.*
+- [ ] **17.1 Repository Pattern:** Introduce a Data Access Layer. The Engine should request `Domain Objects` (Pure Python dataclasses), not SQLAlchemy ORM objects.
+- [ ] **17.2 Property-Based Testing:** Implement `Hypothesis` tests for the Calculation Engine. Define invariants (e.g., "Liquid Assets never imply debt without a loan") and fuzz-test the engine with generated edge cases.
+- [ ] **17.3 DB Mocking:** Ensure Engine unit tests run without a DB session, improving test speed and isolation.
+
+### Phase 18: The Tax Engine & Governance (Mission 4)
+*Moving from Opaque Code to Transparent Configuration.*
+- [ ] **18.1 Configuration over Code:** Extract hardcoded Tax Bands/Limits from `services/tax.py` into versioned JSON/YAML files (e.g., `tax_regime_2024_uk.json`).
+- [ ] **18.2 Event-Sourced Tax Calculation:** Refactor the tax flow:
+    1. **Emit:** Processors emit `TaxableEvent` objects (e.g., "Interest Received", "Salary Paid") during the monthly loop.
+    2. **Aggregate:** A `TaxProcessor` consumes these events at the Fiscal Year boundary.
+    3. **Resolve:** Calculate the final `TaxBill` based on the active Regime Configuration and deduct from cash.
+- [ ] **18.3 Generic Wrappers:** Replace `Enum.ISA` with configurable `AccountBehavior` definitions (`growth_taxable: bool`, `contribution_limit_rule: str`).
+
+### Phase 19: Probabilistic Modelling (Advanced Mode)
 *Addressing uncertainty.*
-- [ ] **1.2 Monte Carlo Simulation:** An optional "Toggle" mode to run thousands of simulations with variable market returns.
-- [ ] **1.3 Confidence Intervals:** Visualizing the "Cone of Uncertainty" (e.g., 90% chance of solvency) rather than a single deterministic line.
+- [ ] **19.1 Monte Carlo Simulation:** An optional "Toggle" mode to run thousands of simulations with variable market returns.
+- [ ] **19.2 Confidence Intervals:** Visualizing the "Cone of Uncertainty" (e.g., 90% chance of solvency).
 
-### 4. Phase 15: Platform Maturity
-- [ ] **4.1 Authentication:** Multi-user support (Login/Sign-up).
-
-### Future Considerations (Low Priority)
-- [ ] **3.1 Mobile Responsiveness:** Adapting the Sidebar/Modelling layout for phones/tablets.
-- [ ] **4.2 Deployment:** Production Docker Compose, Nginx proxy, CI/CD pipeline.
+### Future Considerations
+- [ ] **Auth:** Multi-user support.
+- [ ] **Deployment:** Production Docker/Nginx/CI pipelines.
