@@ -36,7 +36,22 @@ echo "[1/2] Running Database Migrations..."
 if $EXEC_CMD alembic upgrade head; then
     echo "✅ Migrations applied."
 else
-    echo "❌ Migration Failed."
+    echo "❌ Migration Failed. Attempting Hard Reset (Staging Preservation Logic)..."
+    # If migration failed, the DB is likely incompatible with the code (Stale Volume).
+    # We delete it and try again.
+    
+    if [ -f "$DB_FILE" ]; then
+        echo "⚠️  Deleting incompatible database: $DB_FILE"
+        rm "$DB_FILE"
+    fi
+    
+    # Retry Migration on fresh DB
+    if $EXEC_CMD alembic upgrade head; then
+        echo "✅ Recovery Successful: Migrations applied to fresh DB."
+    else
+        echo "❌ Recovery Failed. Application may not start correctly."
+        # We don't exit here to allow debugging, but it's likely fatal.
+    fi
 fi
 
 # --- STEP 2: SEED ---

@@ -2,10 +2,23 @@ import sqlite3
 import os
 
 # Determine DB path dynamically to match start.sh logic
-DB_PATH = "/app/data/marty.db"
-
+# Priority 1: DATABASE_URL env var
+db_url = os.getenv("DATABASE_URL")
+if db_url and db_url.startswith("sqlite:///"):
+    # Strip prefix
+    DB_PATH = db_url.replace("sqlite:///", "")
+    # Handle absolute path triple slash
+    if DB_PATH.startswith("/"):
+        pass # It's absolute, e.g. /data/marty.db
+    else:
+        # relative, assume /app/
+        pass
+else:
+    # Priority 2: Default Hardcoded paths
+    DB_PATH = "/app/data/marty.db"
+    
 # Fallback for local dev if not running inside Docker structure
-if not os.path.exists("/app/data"):
+if not os.path.exists("/app/data") and not db_url:
     if os.path.exists("marty.db"):
         DB_PATH = "marty.db"
     elif os.path.exists("data/marty.db"):
