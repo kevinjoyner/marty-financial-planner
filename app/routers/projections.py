@@ -1,39 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from typing import Optional
-import sys
+from .. import crud, schemas, database, models
+from ..engine import core as engine
 
-from .. import crud, engine
-from ..database import get_db
-from ..schemas.projection import Projection, ProjectionRequest
+router = APIRouter(prefix="/api/projections", tags=["projections"])
 
-router = APIRouter(
-    prefix="/projections",
-    tags=["projections"],
-)
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@router.post("/{scenario_id}/project", response_model=Projection)
+@router.post("/{scenario_id}/project", response_model=schemas.ProjectionResult)
 def project_scenario(
     scenario_id: int, 
-    # Standard Query Param
-    months: int = Query(12),
-    # Body Payload - OPTIONAL
-    payload: Optional[ProjectionRequest] = Body(default=None),
+    payload: schemas.SimulationPayload,
     db: Session = Depends(get_db)
 ):
     db_scenario = crud.get_scenario(db, scenario_id=scenario_id)
-    if db_scenario is None:
+    if not db_scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
-
-    final_months = months
-
-    if payload:
-        # 1. Apply Overrides
-        if payload.overrides:
-            engine.apply_simulation_overrides(db_scenario, payload.overrides)
-        
-        # 2. Determine Duration override
-        if payload.simulation_months is not None:
-            final_months = payload.simulation_months
-
-    return engine.run_projection(db=db, scenario=db_scenario, months=final_months)
+    
+    # Calculate months from start date to today + simulation_years? 
+    # Or just use payload months.
+    final_months = payload.simulation_months or 60 # Default 5 years
+    
+    return engine.run_projection(db=db, scenario=db_scenario, months=final_months, overrides=payload.overrides)

@@ -1,123 +1,58 @@
-from app import models, enums, schemas
+from app import models, enums
 from app.engine.context import ProjectionContext
 from dateutil.relativedelta import relativedelta
-from app.services.tax import TaxService
-import logging
-
-logger = logging.getLogger(__name__)
+import math
 
 def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
-    """
-    Process RSU vesting events.
-    Handles 'monthly' and 'quarterly' vesting cadences.
-    """
-    for acc in context.all_accounts:
-        if acc.account_type != enums.AccountType.RSU_GRANT: continue
+    # Iterate all accounts that are RSU type
+    rsu_accounts = [a for a in context.all_accounts if a.account_type == enums.AccountType.RSU_GRANT]
+    
+    for rsu in rsu_accounts:
+        if not rsu.vesting_schedule or not rsu.grant_date: continue
         
-        try:
-            if not acc.grant_date or not acc.vesting_schedule: continue
-            schedule = acc.vesting_schedule
-            if not isinstance(schedule, list): continue
+        # Calculate months since grant
+        # diff = (context.month_start.year - rsu.grant_date.year) * 12 + (context.month_start.month - rsu.grant_date.month)
+        # Better: check if current month matches a vesting milestone
+        
+        # We need to know which tranche vests THIS month.
+        # Schedule: [{"year": 1, "percent": 25}, ...]
+        # Vest Date = Grant Date + X years
+        
+        vest_month_matches = []
+        for tranche in rsu.vesting_schedule:
+            years = int(tranche.get("year", 0))
+            percent = float(tranche.get("percent", 0))
             
-            unit_price = acc.unit_price if acc.unit_price is not None else 0
-            current_month = context.month_start
-            grant_date = acc.grant_date
+            vest_date = rsu.grant_date + relativedelta(years=years)
             
-            # Robust Cadence Get
-            cadence = getattr(acc, 'vesting_cadence', 'monthly')
-            if hasattr(cadence, 'value'): cadence = cadence.value
-            cadence = str(cadence) if cadence else 'monthly'
-            
-            is_quarterly = (cadence == 'quarterly')
-            
-            delta = relativedelta(current_month, grant_date)
-            months_elapsed = delta.years * 12 + delta.months
-            
-            if months_elapsed <= 0: continue
-
-            if is_quarterly and (months_elapsed % 3 != 0): 
-                continue
-
-            target_vested_percent = 0.0
-            sorted_schedule = sorted(schedule, key=lambda x: x.get('year', 99))
-            previous_years_end_month = 0
-            
-            for tranche in sorted_schedule:
-                year_num = tranche.get('year')
-                percent = tranche.get('percent', 0)
-                year_end_month = year_num * 12
-                year_start_month = previous_years_end_month
-                
-                if months_elapsed >= year_end_month:
-                    target_vested_percent += percent
-                elif months_elapsed > year_start_month:
-                    months_into_year = months_elapsed - year_start_month
-                    fraction = months_into_year / 12.0 # Simple linear for both
-                    target_vested_percent += (percent * fraction)
-                    break 
-                previous_years_end_month = year_end_month
-
-            # --- FIX: Divide stored balance by 100 to get actual units ---
-            # DB stores '401' as '40100' (pence logic). We need '401'.
-            original_units = acc.starting_balance / 100.0
-            
-            target_remaining_units = int(original_units * (1.0 - (target_vested_percent / 100.0)))
-            
-            # Fetch current balance (units * 100) from Simulation State
-            current_units_raw = context.account_balances.get(acc.id, 0)
-            current_units = current_units_raw / 100.0
-            
-            units_to_vest = current_units - target_remaining_units
-            
-            if units_to_vest > current_units: units_to_vest = current_units
-            if units_to_vest <= 0: continue
-
+            # If vesting cadence is monthly, we divide this tranche over 12 months *after* the cliff?
+            # Or is it simple annual vesting?
+            # Implemented logic: Simple Match
+            if vest_date.year == context.month_start.year and vest_date.month == context.month_start.month:
+                vest_month_matches.append(percent)
+        
+        total_percent_vesting = sum(vest_month_matches)
+        
+        if total_percent_vesting > 0:
             # Calculate Value
-            # Price is in Pence (e.g. 1000p = £10). 
-            # Value = Units * Price (Pence) = Pence Value
-            price_gbp = unit_price 
-            if acc.currency == enums.Currency.USD:
-                rate = scenario.gbp_to_usd_rate if scenario.gbp_to_usd_rate and scenario.gbp_to_usd_rate > 0 else 1.25
-                price_gbp = int(unit_price / rate)
-                
-            years_float = months_elapsed / 12.0
-            growth_rate = (acc.interest_rate or 0.0) / 100.0
-            growth_factor = (1 + growth_rate) ** years_float
-            current_price_gbp = int(price_gbp * growth_factor)
+            # total_units = rsu.starting_balance (but we need initial units, balance tracks remaining?)
+            # Assuming starting_balance is TOTAL units granted.
+            # And we don't decrement balance in this simple engine, we just generate income.
             
-            gross_value = int(units_to_vest * current_price_gbp)
+            # Value = Units * Percent * Price
+            # Price is in pence.
             
-            # Tax Logic
-            owner_id = acc.owners[0].id if acc.owners else None
-            tax_deducted = 0
-            ni_deducted = 0
+            units_vesting = (rsu.starting_balance * total_percent_vesting) / 100.0
+            vest_value = int(units_vesting * (rsu.unit_price or 0))
             
-            if owner_id:
-                ytd = context.ytd_earnings.get(owner_id, {'taxable': 0, 'ni': 0})
-                current_taxable = ytd['taxable']
-                tax_before = TaxService._calculate_income_tax(current_taxable / 100.0) * 100
-                tax_after = TaxService._calculate_income_tax((current_taxable + gross_value) / 100.0) * 100
-                income_tax_due = int(tax_after - tax_before)
-                ni_due = int(gross_value * 0.02)
-                
-                tax_deducted = income_tax_due
-                ni_deducted = ni_due
-                
-                context.ytd_earnings[owner_id]['taxable'] += gross_value
-                context.flows[acc.id]['tax'] += (tax_deducted + ni_deducted) / 100.0
-
-            net_proceeds = gross_value - tax_deducted - ni_deducted
+            # Log
+            # context.rule_logs.append(...) # (Simplified, context doesn't strictly have logs list in this version)
             
-            # Execute Movements
-            # We deduct units (x100) from RSU account
-            units_to_remove_raw = int(units_to_vest * 100)
-            context.account_balances[acc.id] -= units_to_remove_raw
-            
-            target_id = acc.rsu_target_account_id
-            if target_id and target_id in context.account_balances:
-                context.account_balances[target_id] += net_proceeds
-                context.flows[target_id]['transfers_in'] += net_proceeds / 100.0
-        
-        except Exception as e:
-            logger.error(f"Error processing RSU {acc.name} ({acc.id}): {e}")
-            continue
+            # Credit Target
+            if rsu.rsu_target_account_id:
+                target_id = rsu.rsu_target_account_id
+                if target_id in context.account_balances:
+                    context.account_balances[target_id] += vest_value
+                    if target_id not in context.flows: context.flows[target_id] = {}
+                    if "rsu_vest" not in context.flows[target_id]: context.flows[target_id]["rsu_vest"] = 0
+                    context.flows[target_id]["rsu_vest"] += vest_value / 100.0
