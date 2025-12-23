@@ -32,8 +32,8 @@ const ganttLabelPlugin = {
         const lanes = []; 
         const ROW_HEIGHT = 26;
         const BASE_Y = scales.y.bottom + 50; 
-        const PADDING_X = 12; // Increased to 12
-        const MARGIN = 20; // Increased to 20 for significant safety gap
+        const PADDING_X = 16; // Increased to 16 for maximum safety
+        const MARGIN = 30; // Increased to 30 to force stacking on collisions
 
         const sortedAnns = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
         const drawItems = [];
@@ -42,16 +42,18 @@ const ganttLabelPlugin = {
             const xPos = scales.x.getPixelForValue(ann.date);
             if (xPos === undefined || isNaN(xPos) || xPos < chartArea.left || xPos > chartArea.right) return;
 
-            ctx.font = "bold 10px Inter, sans-serif"; 
+            // Ensure context state is consistent for measurement
+            ctx.font = "bold 11px sans-serif"; 
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            
             const textWidth = ctx.measureText(ann.label).width;
-            const boxWidth = Math.ceil(textWidth + (PADDING_X * 2));
+            // Add extra buffer to measured width to account for rendering variations
+            const boxWidth = Math.ceil(textWidth + (PADDING_X * 2) + 10);
             
             let laneIndex = 0;
             // Find the first lane where this box fits without overlapping the previous item
             while (true) {
-                // Check if this lane has an item that extends past the current xPos minus margin
-                // actually we stored the *end* of the last item in this lane.
-                // So we need xPos > lane_end + margin
                 const laneEnd = lanes[laneIndex] || -9999;
                 
                 if (xPos > (laneEnd + MARGIN)) {
@@ -92,7 +94,7 @@ const ganttLabelPlugin = {
         ctx.setLineDash([]); 
         ctx.globalAlpha = 1.0;
 
-        ctx.font = "bold 10px Inter, sans-serif";
+        ctx.font = "bold 11px sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
 
@@ -181,7 +183,8 @@ const preparedData = computed(() => {
     const startDate = new Date(availableDates[0]).getTime();
     const endDate = new Date(availableDates[availableDates.length - 1]).getTime();
     const totalDuration = endDate - startDate;
-    const LABEL_BUFFER_MS = totalDuration * 0.12; 
+    // Increased buffer to match aggressive pixel spacing (was 0.12)
+    const LABEL_BUFFER_MS = totalDuration * 0.18; 
     sorted.forEach(ann => {
         const annTime = new Date(ann.date).getTime();
         let laneIndex = 0;
@@ -197,12 +200,14 @@ const preparedData = computed(() => {
 
 const containerHeight = computed(() => {
     const laneCount = preparedData.value.laneCount || 0;
-    return 350 + 20 + (50 + (laneCount * 28) + 10);
+    // Increased per-lane height from 28 to 32
+    return 350 + 20 + (50 + (laneCount * 32) + 10);
 })
 
 const chartOptions = computed(() => {
     const laneCount = preparedData.value.laneCount || 0;
-    const bottomPadding = 50 + (laneCount * 28) + 10; 
+    // Increased per-lane height from 28 to 32
+    const bottomPadding = 50 + (laneCount * 32) + 10; 
     return { 
         responsive: true, 
         maintainAspectRatio: false, 
