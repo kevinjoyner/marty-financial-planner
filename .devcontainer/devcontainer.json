@@ -3,6 +3,13 @@
   "dockerComposeFile": ["../docker-compose.yml", "../docker-compose.dev.yml"],
   "service": "app",
   "workspaceFolder": "/app",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": false,
+      "username": "appuser",
+      "upgradePackages": false
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
