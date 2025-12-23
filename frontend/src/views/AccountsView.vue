@@ -243,34 +243,52 @@ const goToPeople = () => router.push('/tax')
                         <h4 class="text-xs font-bold text-indigo-500 uppercase tracking-wide">Grant Details</h4>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Total Units</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Total Units</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-units`, realId: editingAccount.id, type: 'account', field: 'starting_balance', label: `${editingAccount.name} Units`, value: editingAccount.starting_balance / 100, format: 'currency' }" />
+                                </div>
                                 <input type="number" v-model="form.starting_balance" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Unit Price (£)</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Unit Price (£)</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-price`, realId: editingAccount.id, type: 'account', field: 'unit_price', label: `${editingAccount.name} Price`, value: editingAccount.unit_price ? editingAccount.unit_price / 100 : 0, format: 'currency' }" />
+                                </div>
                                 <input type="number" step="0.01" v-model="form.unit_price" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Grant Date</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Grant Date</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-grantdate`, realId: editingAccount.id, type: 'account', field: 'grant_date', label: `${editingAccount.name} Date`, value: editingAccount.grant_date, inputType: 'date' }" />
+                                </div>
                                 <input type="date" v-model="form.grant_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Growth (%)</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Growth (%)</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-growth`, realId: editingAccount.id, type: 'account', field: 'interest_rate', label: `${editingAccount.name} Growth`, value: editingAccount.interest_rate, format: 'percent' }" />
+                                </div>
                                 <input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Vesting Cadence</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Vesting Cadence</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-cadence`, realId: editingAccount.id, type: 'account', field: 'vesting_cadence', label: `${editingAccount.name} Cadence`, value: editingAccount.vesting_cadence, inputType: 'select', options: [{id: 'monthly', name: 'Monthly'}, {id: 'quarterly', name: 'Quarterly'}] }" />
+                                </div>
                                 <select v-model="form.vesting_cadence" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                                     <option value="monthly">Monthly</option>
                                     <option value="quarterly">Quarterly</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Target Account</label>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-sm font-medium text-slate-700">Target Account</label>
+                                    <PinToggle v-if="editingAccount.id !== 'new'" :item="{ id: `acc-${editingAccount.id}-target`, realId: editingAccount.id, type: 'account', field: 'rsu_target_account_id', label: `${editingAccount.name} Target`, value: editingAccount.rsu_target_account_id, inputType: 'select', options: accountOptions }" />
+                                </div>
                                 <select v-model="form.rsu_target_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                                     <option :value="null">-- None --</option>
                                     <option v-for="a in accountOptions" :key="a.id" :value="a.id">{{ a.name }}</option>

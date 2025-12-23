@@ -5,38 +5,54 @@ from .context import ProjectionContext
 from .processors import income, costs, transfers, mortgage, tax, rsu, growth, rules, decumulation, events
 from .helpers import calculate_gbp_balances, _get_enum_value
 from dateutil.relativedelta import relativedelta
-from datetime import date
+from datetime import date, datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schemas.SimulationOverride]):
+    
+    def _parse_val(field, val):
+        """Convert date strings to date objects if the field implies a date."""
+        if isinstance(val, str) and (field.endswith('_date') or field == 'birth_date'):
+            try:
+                # Try standard ISO format YYYY-MM-DD
+                return datetime.strptime(val, "%Y-%m-%d").date()
+            except ValueError:
+                return val # Return as is if parse fails
+        return val
+
     for override in overrides:
+        val = _parse_val(override.field, override.value)
+        
         if override.type == 'account':
             acc = next((a for a in scenario.accounts if a.id == override.id), None)
-            if acc and hasattr(acc, override.field): setattr(acc, override.field, override.value)
+            if acc and hasattr(acc, override.field): setattr(acc, override.field, val)
         elif override.type == 'income':
             for owner in scenario.owners:
                 inc = next((i for i in owner.income_sources if i.id == override.id), None)
-                if inc and hasattr(inc, override.field): setattr(inc, override.field, override.value)
+                if inc and hasattr(inc, override.field): setattr(inc, override.field, val)
         elif override.type == 'cost':
             cost = next((c for c in scenario.costs if c.id == override.id), None)
-            if cost and hasattr(cost, override.field): setattr(cost, override.field, override.value)
+            if cost and hasattr(cost, override.field): setattr(cost, override.field, val)
         elif override.type == 'transfer':
             trans = next((t for t in scenario.transfers if t.id == override.id), None)
-            if trans and hasattr(trans, override.field): setattr(trans, override.field, override.value)
+            if trans and hasattr(trans, override.field): setattr(trans, override.field, val)
         elif override.type == 'event':
             evt = next((e for e in scenario.financial_events if e.id == override.id), None)
-            if evt and hasattr(evt, override.field): setattr(evt, override.field, override.value)
+            if evt and hasattr(evt, override.field): setattr(evt, override.field, val)
         elif override.type == 'tax_limit':
             limit = next((t for t in scenario.tax_limits if t.id == override.id), None)
-            if limit and hasattr(limit, override.field): setattr(limit, override.field, override.value)
+            if limit and hasattr(limit, override.field): setattr(limit, override.field, val)
         elif override.type == 'rule':
             rule = next((r for r in scenario.automation_rules if r.id == override.id), None)
-            if rule and hasattr(rule, override.field): setattr(rule, override.field, override.value)
+            if rule and hasattr(rule, override.field): setattr(rule, override.field, val)
 
 def run_projection(db: Session, scenario: models.Scenario, months: int, overrides: list = None) -> schemas.ProjectionResult:
     if overrides is None: overrides = []
+    
+    # Apply overrides to the in-memory scenario object BEFORE processing starts
+    apply_simulation_overrides(scenario, overrides)
     
     all_accounts = scenario.accounts
     start_date = scenario.start_date
@@ -101,7 +117,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
         decumulation.process_decumulation(scenario, context)
         growth.process_growth(scenario, context)
         
-        # --- MILESTONE & RETIREMENT CHECKS ---
+        # --- MILESTONE CHECKS ---
         for owner in scenario.owners:
             if owner.birth_date and owner.retirement_age:
                 ret_date = owner.birth_date + relativedelta(years=owner.retirement_age)
@@ -116,7 +132,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
         current_breakdown, current_total = calculate_gbp_balances(context.account_balances, all_accounts, scenario.gbp_to_usd_rate, projection_month_start)
         end_of_month = projection_month_start + relativedelta(months=1, days=-1)
         
-        # Calculate Metrics & Detect Cleared Mortgages
+        # Metrics & Cleared Logic
         liquid_val = 0
         liability_val = 0
         
@@ -125,8 +141,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
             type_val = _get_enum_value(acc.account_type)
             wrapper_val = _get_enum_value(acc.tax_wrapper)
             
-            # --- Detect Individual Mortgage Clearance ---
-            # Transition from <0 (Debt) to >=0 (Cleared)
+            # Detect Mortgage Clearance
             if type_val in ["Mortgage", "Loan"]:
                 prev_bal = context.prev_balances.get(acc.id, 0)
                 if prev_bal < 0 and bal_pence >= 0:
@@ -136,8 +151,6 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
                         type="success"
                     ))
 
-            # --- Liquid Assets Logic ---
-            # Convert USD to GBP for apples-to-apples comparison
             val_gbp = bal_pence
             if _get_enum_value(acc.currency) == "USD":
                 val_gbp = round(bal_pence / scenario.gbp_to_usd_rate)
@@ -154,7 +167,6 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
             if type_val in ["Mortgage", "Loan"] and bal_pence < 0:
                 liability_val += abs(val_gbp)
 
-        # Skip milestone checks for the very first month to avoid "Start State" triggers
         if i > 0:
             if prev_metrics['liquid'] < prev_metrics['liability'] and liquid_val >= liability_val:
                  context.annotations.append(schemas.ProjectionAnnotation(
