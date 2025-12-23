@@ -1,7 +1,7 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from typing import Optional, List, Dict
-from datetime import date, datetime
-from ..enums import AccountType, Cadence, Currency, TaxWrapper
+from datetime import date
+from ..enums import AccountType, TaxWrapper, Currency
 
 class AccountBase(BaseModel):
     name: str

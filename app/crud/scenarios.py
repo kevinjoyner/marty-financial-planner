@@ -189,34 +189,40 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
     def clear_children(model, fk_field):
         db.query(model).filter(getattr(model, fk_field) == scenario_id).delete()
 
-    if "owners" in data:
-        # Clear existing? Or Update?
-        # Test 'test_import_scenario_data' expects len(owners) == 1.
-        # For simple restore/import, we can iterate and create.
-        # Ideally we should clear old owners if this is a full replacement.
-        # clear_children(models.Owner, "scenario_id")
-        # CAUTION: Clearing owners deletes Accounts via cascade? Or just ownership links?
-        # Check models: Owners delete -> cascade to IncomeSources.
-        # AccountOwners?
+    # Need ID Mapping for relationships
+    owner_map = {} # old_id -> new_id
+    account_map = {} # old_id -> new_id
+    deferred_account_updates = [] # (db_acc, old_payment_id, old_rsu_id)
 
-        # Need ID Mapping for relationships
-        owner_map = {} # old_id -> new_id
-        account_map = {} # old_id -> new_id
+    # Import Accounts First (IncomeSource might reference Account)
+    if "accounts" in data and data["accounts"]:
+        for acc_data in data["accounts"]:
+             old_id = acc_data.get("id")
+             ad = acc_data.copy()
+             if "id" in ad: del ad["id"]
+             if "owners" in ad: del ad["owners"]
 
-        # Import Accounts First (IncomeSource might reference Account)
-        if "accounts" in data and data["accounts"]:
-            for acc_data in data["accounts"]:
-                 old_id = acc_data.get("id")
-                 ad = acc_data.copy()
-                 if "id" in ad: del ad["id"]
-                 if "owners" in ad: del ad["owners"]
+             # Handle self-referential FKs by deferring
+             old_payment_id = ad.pop("payment_from_account_id", None)
+             old_rsu_id = ad.pop("rsu_target_account_id", None)
 
-                 db_acc = models.Account(scenario_id=scenario_id, **ad)
-                 db.add(db_acc)
-                 db.flush()
-                 if old_id: account_map[old_id] = db_acc.id
+             db_acc = models.Account(scenario_id=scenario_id, **ad)
+             db.add(db_acc)
+             db.flush()
+             if old_id: account_map[old_id] = db_acc.id
 
-        # Import Owners and IncomeSources
+             if old_payment_id or old_rsu_id:
+                 deferred_account_updates.append((db_acc, old_payment_id, old_rsu_id))
+
+    # Process Deferred Account Updates (FKs)
+    for db_acc, pay_id, rsu_id in deferred_account_updates:
+        if pay_id and pay_id in account_map:
+            db_acc.payment_from_account_id = account_map[pay_id]
+        if rsu_id and rsu_id in account_map:
+            db_acc.rsu_target_account_id = account_map[rsu_id]
+
+    # Import Owners and IncomeSources
+    if "owners" in data and data["owners"]:
         for owner_data in data["owners"]:
             old_id = owner_data.get("id")
             od = owner_data.copy()
