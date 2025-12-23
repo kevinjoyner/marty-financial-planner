@@ -41,10 +41,10 @@ def test_simple_isa_withdrawal():
     
     # Check Cash is zero'd
     assert context.account_balances[1] == 0
-    # Check ISA is reduced by exactly 1000
+    # Check ISA is reduced by exactly 100000 (1000 pounds)
     assert context.account_balances[2] == 400000 
     # Check Flows
-    assert context.flows[2]["transfers_out"] == 1000.0
+    assert context.flows[2]["transfers_out"] == 100000
 
 def test_pension_withdrawal_tax():
     """
@@ -89,4 +89,4 @@ def test_pension_withdrawal_tax():
     assert 99990 <= loss <= 100010
     
     # Check Tax Flow
-    assert 149.0 <= context.flows[2]["tax"] <= 151.0
+    assert 14900 <= context.flows[2]["tax"] <= 15100

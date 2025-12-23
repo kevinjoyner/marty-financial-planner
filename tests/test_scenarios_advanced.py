@@ -121,8 +121,12 @@ def test_import_scenario_data(client, db_session):
         }
     ]
 
+    # Convert to Pydantic Model
+    from app import schemas
+    import_model = schemas.ScenarioImport(**import_data)
+
     # 3. Import
-    updated_scenario = crud.import_scenario_data(db, scenario.id, import_data)
+    updated_scenario = crud.import_scenario_data(db, scenario.id, import_model)
 
     assert updated_scenario.name == "Imported Scenario"
     assert updated_scenario.start_date == date(2025, 1, 1)

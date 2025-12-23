@@ -27,9 +27,9 @@ def test_run_projection(client, test_db):
     response = client.post(f"/api/projections/{scenario_id}/project?months=3", json={})
     assert response.status_code == 200, response.text
     data = response.json()
-    # 1000 + 500 - 200 = 1300
-    assert data["data_points"][0]["balance"] == 1000.0 
-    assert data["data_points"][1]["balance"] == 1300.0
+    # 1000 + 500 - 200 = 1300 GBP -> 130000 Pence
+    assert data["data_points"][0]["balance"] == 100000 
+    assert data["data_points"][1]["balance"] == 130000
 
 def test_run_projection_with_mortgage(client, test_db):
     scenario = create_test_scenario(client, "Mortgage Test Scenario")
@@ -74,4 +74,4 @@ def test_run_projection_with_mortgage(client, test_db):
     
     actual_mortgage_balance = data["data_points"][1]["account_balances"][str(mortgage_id)]
     
-    assert abs(actual_mortgage_balance - (expected_mortgage_balance_pence/100.0)) < 0.10
+    assert abs(actual_mortgage_balance - expected_mortgage_balance_pence) < 10
