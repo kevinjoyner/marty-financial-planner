@@ -64,10 +64,14 @@ class AccountUpdate(BaseModel):
     is_primary_account: Optional[bool] = None
     currency: Optional[Currency] = None
     payment_from_account_id: Optional[int] = None
+    
+    # RSU Fields
     rsu_target_account_id: Optional[int] = None
     vesting_schedule: Optional[List[dict]] = None
     grant_date: Optional[date] = None 
     unit_price: Optional[int] = None
+    vesting_cadence: Optional[str] = None
+    
     owner_ids: Optional[List[int]] = None
 
 class OwnerInAccount(OwnerBase):
