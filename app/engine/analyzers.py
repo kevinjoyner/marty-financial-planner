@@ -70,3 +70,12 @@ def detect_milestones(context: ProjectionContext):
          # FIX: Check if already added to avoid duplicates from volatility
          if not any(a.label == "Liquid assets exceed liabilities" for a in context.annotations):
              context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Liquid assets exceed liabilities", type="milestone"))
+
+    # ALERT: Insolvency (Running out of money)
+    # Check if Liquid Assets drop below 0 (excluding debt) - this means even cash/investments are gone/overdrawn
+    # or strictly, if total liquid balance is negative.
+    if curr_liquid < 0:
+        # Check if we already have this alert for this month to avoid span spam
+        if not any(a.label == "Insolvency Risk" and a.date == context.month_start for a in context.annotations):
+             context.annotations.append(schemas.ProjectionAnnotation(date=context.month_start, label="Insolvency Risk", type="insolvency"))
+

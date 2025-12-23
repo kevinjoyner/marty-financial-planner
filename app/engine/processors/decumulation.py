@@ -12,6 +12,37 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     3. Withdraw from liquid assets to cover deficit.
        Priority: GIA (Investments) -> ISA -> Pension.
     """
+    # 0. Check Strategy Settings
+    should_run = False
+    
+    # Default to Standard/Enabled if no strategy defined (or strictly follow DB?)
+    # If DB has strategies, we use them. If none, maybe default is OFF?
+    # User said "Switching it off".
+    
+    active_strategies = [s for s in scenario.decumulation_strategies if s.enabled]
+    if not active_strategies:
+        # If explicit Record exists and is Disabled, we stop.
+        # If NO record exists, historical behavior might be "On"? 
+        # But safest is: If user says "Switching it off", there is a record with enabled=False.
+        # So if no active strategies found, we return.
+        # However, we must check if there ARE any strategies at all.
+        if scenario.decumulation_strategies:
+            return 
+        else:
+             # Legacy/Default behavior (if no strategy table used yet) -> Run Standard?
+             # Or assume default ON?
+             # Let's assume default ON to avoid breaking existing sims without strategy records.
+             should_run = True
+    else:
+        # We have active strategies. Check dates.
+        # Just grab the first active one for now (Scenario usually has 1 global strategy or multiples?)
+        strat = active_strategies[0]
+        if strat.start_date and context.month_start < strat.start_date.replace(day=1): should_run = False
+        elif strat.end_date and context.month_start > strat.end_date: should_run = False
+        else: should_run = True
+
+    if not should_run: return
+
     # 1. Calculate Deficit in Cash Accounts
     total_deficit = 0
     cash_accounts = []
@@ -64,7 +95,7 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
 
         if acc.id not in context.flows: context.flows[acc.id] = {}
         if "transfers_out" not in context.flows[acc.id]: context.flows[acc.id]["transfers_out"] = 0
-        context.flows[acc.id]["transfers_out"] += to_withdraw / 100.0
+        context.flows[acc.id]["transfers_out"] += to_withdraw
 
     if remaining_deficit <= 0: return
 
@@ -84,11 +115,11 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
         # Log Flow
         if acc.id not in context.flows: context.flows[acc.id] = {}
         if "transfers_out" not in context.flows[acc.id]: context.flows[acc.id]["transfers_out"] = 0
-        context.flows[acc.id]["transfers_out"] += to_withdraw / 100.0
+        context.flows[acc.id]["transfers_out"] += to_withdraw
 
         if target_acc.id not in context.flows: context.flows[target_acc.id] = {}
         if "transfers_in" not in context.flows[target_acc.id]: context.flows[target_acc.id]["transfers_in"] = 0
-        context.flows[target_acc.id]["transfers_in"] += to_withdraw / 100.0
+        context.flows[target_acc.id]["transfers_in"] += to_withdraw
 
     if remaining_deficit <= 0: return
 
@@ -144,14 +175,14 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
         # Log Flows
         if acc.id not in context.flows: context.flows[acc.id] = {}
         if "transfers_out" not in context.flows[acc.id]: context.flows[acc.id]["transfers_out"] = 0
-        context.flows[acc.id]["transfers_out"] += to_withdraw_gross / 100.0
+        context.flows[acc.id]["transfers_out"] += to_withdraw_gross
 
         if "tax" not in context.flows[acc.id]: context.flows[acc.id]["tax"] = 0
-        context.flows[acc.id]["tax"] += tax_deducted / 100.0
+        context.flows[acc.id]["tax"] += tax_deducted
 
         if target_acc.id not in context.flows: context.flows[target_acc.id] = {}
         if "transfers_in" not in context.flows[target_acc.id]: context.flows[target_acc.id]["transfers_in"] = 0
-        context.flows[target_acc.id]["transfers_in"] += net_proceeds / 100.0
+        context.flows[target_acc.id]["transfers_in"] += net_proceeds
 
 
 def solve_gross_withdrawal(

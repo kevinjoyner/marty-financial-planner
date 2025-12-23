@@ -13,7 +13,7 @@ const stats = computed(() => {
 })
 
 // Values in stats are in Pounds (float). formatCurrency expects Pence.
-const formatAmount = (val) => formatCurrency(val * 100)
+const formatAmount = (val) => formatCurrency(val)
 </script>
 
 <template>

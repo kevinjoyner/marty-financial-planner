@@ -3,18 +3,22 @@ from typing import Dict, List, Any, Optional
 from datetime import date
 
 # --- OUTPUT SCHEMAS ---
+from .types import Money
+
+# --- OUTPUT SCHEMAS ---
 class ProjectionFlows(BaseModel):
-    income: float = 0
-    costs: float = 0
-    transfers_in: float = 0
-    transfers_out: float = 0
-    mortgage_payments_out: float = 0
-    mortgage_repayments_in: float = 0
-    interest: float = 0
-    events: float = 0
-    tax: float = 0
-    cgt: float = 0
-    employer_contribution: float = 0
+    income: Money = 0
+    costs: Money = 0
+    transfers_in: Money = 0
+    transfers_out: Money = 0
+    mortgage_payments_out: Money = 0
+    mortgage_repayments_in: Money = 0
+    interest: Money = 0
+    events: Money = 0
+    tax: Money = 0
+    cgt: Money = 0
+    employer_contribution: Money = 0
+    growth: Money = 0
 
 class ProjectionWarning(BaseModel):
     date: date
@@ -32,7 +36,7 @@ class RuleExecutionLog(BaseModel):
     date: date
     rule_type: str
     action: str
-    amount: float
+    amount: Money
     source_account: str
     target_account: str
     reason: str
@@ -41,14 +45,15 @@ class MortgageStat(BaseModel):
     year_start: int
     rule_id: int
     rule_name: str
-    allowance: float
-    paid: float
-    headroom: float
+    allowance: Money
+    paid: Money
+    headroom: Money
 
 class ProjectionDataPoint(BaseModel):
     date: date
-    balance: float
-    account_balances: Dict[int, float]
+    balance: Money
+    liquid_assets: Money
+    account_balances: Dict[int, Money]
     flows: Dict[int, ProjectionFlows] = {}
 
 class Projection(BaseModel):

@@ -44,7 +44,7 @@ const logs = computed(() => {
     })
 })
 
-const formatAmount = (val) => formatCurrency(val * 100)
+const formatAmount = (val) => formatCurrency(val)
 </script>
 
 <template>

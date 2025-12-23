@@ -121,7 +121,7 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
                 ni_deducted = ni_due
                 
                 context.ytd_earnings[owner_id]['taxable'] += gross_value
-                context.flows[acc.id]['tax'] += (tax_deducted + ni_deducted) / 100.0
+                context.flows[acc.id]['tax'] += (tax_deducted + ni_deducted)
 
             net_proceeds = gross_value - tax_deducted - ni_deducted
             
@@ -133,7 +133,7 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
             target_id = acc.rsu_target_account_id
             if target_id and target_id in context.account_balances:
                 context.account_balances[target_id] += net_proceeds
-                context.flows[target_id]['transfers_in'] += net_proceeds / 100.0
+                context.flows[target_id]['transfers_in'] += net_proceeds
 
             # Log the event
             # Using dict as intermediate, context expects lists which get validated later.
@@ -146,7 +146,7 @@ def process_rsu_vesting(scenario: models.Scenario, context: ProjectionContext):
                 "date": context.month_start,
                 "rule_type": "RSU Vest",
                 "action": "Vest",
-                "amount": net_proceeds / 100.0,
+                "amount": net_proceeds,
                 "source_account": acc.name,
                 "target_account": "Target", # We could lookup target name
                 "reason": f"Vested {units_to_vest:.2f} units"

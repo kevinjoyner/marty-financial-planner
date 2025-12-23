@@ -18,11 +18,15 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
         # Robust Cadence
         cadence_str = _get_enum_value(rule.cadence)
         should_run = False
+        
+        start_month = rule.start_date.month if rule.start_date else 1
+        start_year = rule.start_date.year if rule.start_date else context.month_start.year # Default to current year if None? Or meaningless for 'once'?
+
         if cadence_str == 'once':
-            if rule.start_date and context.month_start.year == rule.start_date.year and context.month_start.month == rule.start_date.month: should_run = True
+            if rule.start_date and context.month_start.year == start_year and context.month_start.month == start_month: should_run = True
         elif cadence_str == 'monthly': should_run = True
         elif cadence_str == 'quarterly' and context.month_start.month in [1, 4, 7, 10]: should_run = True
-        elif cadence_str == 'annually' and context.month_start.month == 1: should_run = True 
+        elif cadence_str == 'annually' and context.month_start.month == start_month: should_run = True 
         
         if not should_run: continue
 
@@ -79,9 +83,9 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
                                 year_start=context.month_start.year - 1, 
                                 rule_id=rule.id, 
                                 rule_name=rule.name or "Overpayment Rule", 
-                                allowance=prev["allowance"] / 100.0, 
-                                paid=prev["paid"] / 100.0, 
-                                headroom=(prev["allowance"] - prev["paid"]) / 100.0
+                                allowance=prev["allowance"], 
+                                paid=prev["paid"], 
+                                headroom=(prev["allowance"] - prev["paid"])
                             ))
                     allowance = int(mortgage_bal * (percentage / 100.0))
                     context.mortgage_state[state_key] = {"allowance": allowance, "paid": 0}
@@ -138,8 +142,8 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
 
             # Perform Move
             context.account_balances[source_id] -= transfer_amount
-            context.flows[source_id]["transfers_out"] += transfer_amount / 100.0
-            context.flows[source_id]["cgt"] += cgt_tax / 100.0
+            context.flows[source_id]["transfers_out"] += transfer_amount
+            context.flows[source_id]["cgt"] += cgt_tax
             
             target_name = "External"
             if target_id and target_id in context.account_balances:
@@ -147,15 +151,15 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
                 context.account_balances[target_id] += net_received
                 context.account_book_costs[target_id] += net_received
                 
-                context.flows[target_id]["transfers_in"] += net_received / 100.0
+                context.flows[target_id]["transfers_in"] += net_received
                 track_contribution(context, target_id, net_received)
                 
                 acc = next((a for a in scenario.accounts if a.id == target_id), None)
                 if acc: target_name = acc.name
                 if acc and _get_enum_value(acc.account_type) == "Mortgage":
-                    context.flows[target_id]["mortgage_repayments_in"] += net_received / 100.0
+                    context.flows[target_id]["mortgage_repayments_in"] += net_received
             else:
-                 context.flows[source_id]["events"] += transfer_amount / 100.0
+                 context.flows[source_id]["events"] += transfer_amount
                  
             src_name = next((a.name for a in scenario.accounts if a.id == source_id), "?")
-            context.rule_logs.append(schemas.RuleExecutionLog(date=context.month_start, rule_type=rule_type_str, action=f"Moved {utils.format_currency(transfer_amount)}", amount=transfer_amount / 100.0, source_account=src_name, target_account=target_name, reason=reason))
+            context.rule_logs.append(schemas.RuleExecutionLog(date=context.month_start, rule_type=rule_type_str, action=f"Moved {utils.format_currency(transfer_amount)}", amount=int(transfer_amount), source_account=src_name, target_account=target_name, reason=reason))

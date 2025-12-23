@@ -58,9 +58,9 @@ def calculate_gbp_balances(current_balances, accounts, rate, month_start=None):
         elif currency_val == "USD":
             val_gbp = round(bal / rate)
             
-        gbp_balances[acc_id] = val_gbp / 100.0
+        gbp_balances[acc_id] = val_gbp
         total += val_gbp
-    return gbp_balances, total / 100.0
+    return gbp_balances, total
 
 def track_contribution(context: ProjectionContext, account_id: int, amount: int):
     if amount <= 0: return

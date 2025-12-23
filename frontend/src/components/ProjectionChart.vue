@@ -32,8 +32,8 @@ const ganttLabelPlugin = {
         const lanes = []; 
         const ROW_HEIGHT = 26;
         const BASE_Y = scales.y.bottom + 50; 
-        const PADDING_X = 8;
-        const MARGIN = 4;
+        const PADDING_X = 12; // Increased to 12
+        const MARGIN = 20; // Increased to 20 for significant safety gap
 
         const sortedAnns = [...annotations].sort((a,b) => new Date(a.date) - new Date(b.date));
         const drawItems = [];
@@ -44,17 +44,22 @@ const ganttLabelPlugin = {
 
             ctx.font = "bold 10px Inter, sans-serif"; 
             const textWidth = ctx.measureText(ann.label).width;
-            const boxWidth = textWidth + (PADDING_X * 2);
+            const boxWidth = Math.ceil(textWidth + (PADDING_X * 2));
             
             let laneIndex = 0;
+            // Find the first lane where this box fits without overlapping the previous item
             while (true) {
-                if (!lanes[laneIndex] || xPos > (lanes[laneIndex] + MARGIN)) {
+                // Check if this lane has an item that extends past the current xPos minus margin
+                // actually we stored the *end* of the last item in this lane.
+                // So we need xPos > lane_end + margin
+                const laneEnd = lanes[laneIndex] || -9999;
+                
+                if (xPos > (laneEnd + MARGIN)) {
                     lanes[laneIndex] = xPos + boxWidth; 
                     break;
                 }
                 laneIndex++;
-            }
-            lanes[laneIndex] = xPos + boxWidth; 
+            } 
 
             const yPos = BASE_Y + (laneIndex * ROW_HEIGHT);
             
@@ -123,8 +128,8 @@ const chartData = computed(() => {
   const showGhost = store.activeOverrideCount > 0 && basePoints && basePoints.length > 0;
 
   if (props.aggregationMode === 'total') {
-      datasets.push({ label: 'Net Worth', data: simPoints.map(p => p.balance), borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
-      if (showGhost) datasets.push({ label: 'Net Worth (Base)', data: basePoints.map(p => p.balance), borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
+      datasets.push({ label: 'Net Worth', data: simPoints.map(p => p.balance / 100.0), borderColor: '#0f172a', borderWidth: 3, tension: 0.2, pointRadius: 0 });
+      if (showGhost) datasets.push({ label: 'Net Worth (Base)', data: basePoints.map(p => p.balance / 100.0), borderColor: '#94a3b8', borderWidth: 2, borderDash: [5, 5], tension: 0.2, pointRadius: 0 });
   } else if (props.aggregationMode === 'category') {
       const categories = ['liquid', 'illiquid', 'liabilities', 'unvested'];
       const catMap = store.accountsByCategory; 
@@ -135,16 +140,16 @@ const chartData = computed(() => {
           if (validIds.length === 0) return;
           const color = getCategoryColor(cat);
           const label = cat.charAt(0).toUpperCase() + cat.slice(1);
-          datasets.push({ label: label, data: simPoints.map(p => validIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0)), borderColor: color, borderWidth: 2, tension: 0.2, pointRadius: 0 });
-          if (showGhost) datasets.push({ label: `${label} (Base)`, data: basePoints.map(p => validIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0)), borderColor: color, borderWidth: 1, borderDash: [4, 4], tension: 0.2, pointRadius: 0, opacity: 0.6 });
+          datasets.push({ label: label, data: simPoints.map(p => validIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0) / 100.0), borderColor: color, borderWidth: 2, tension: 0.2, pointRadius: 0 });
+          if (showGhost) datasets.push({ label: `${label} (Base)`, data: basePoints.map(p => validIds.reduce((sum, id) => sum + (p.account_balances[id] || 0), 0) / 100.0), borderColor: color, borderWidth: 1, borderDash: [4, 4], tension: 0.2, pointRadius: 0, opacity: 0.6 });
       });
   } else {
       props.visibleAccountIds.forEach(accId => {
           const acc = store.scenario?.accounts.find(a => a.id === accId); 
           const name = acc ? acc.name : `Acc ${accId}`; 
           const color = getAccountColor(accId);
-          datasets.push({ label: name, data: simPoints.map(p => (p.account_balances[accId] || 0)), borderColor: color, borderWidth: 2, pointRadius: 0, tension: 0.2 });
-          if (showGhost) datasets.push({ label: `${name} (Base)`, data: basePoints.map(p => (p.account_balances[accId] || 0)), borderColor: color, borderWidth: 1, borderDash: [4, 4], pointRadius: 0, tension: 0.2 });
+          datasets.push({ label: name, data: simPoints.map(p => (p.account_balances[accId] || 0) / 100.0), borderColor: color, borderWidth: 2, pointRadius: 0, tension: 0.2 });
+          if (showGhost) datasets.push({ label: `${name} (Base)`, data: basePoints.map(p => (p.account_balances[accId] || 0) / 100.0), borderColor: color, borderWidth: 1, borderDash: [4, 4], pointRadius: 0, tension: 0.2 });
       });
   }
   return { labels, datasets }
