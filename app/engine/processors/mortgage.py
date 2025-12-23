@@ -43,8 +43,9 @@ def process_mortgages(scenario: models.Scenario, context: ProjectionContext):
                     expected_bal = current_bal # Simplified for now
                     
                     if "interest" not in context.flows[acc.id]: context.flows[acc.id]["interest"] = 0
-                    context.flows[acc.id]["interest"] -= int(interest_charged)
-                    context.account_balances[acc.id] -= int(interest_charged) # This line was syntactically incorrect in the request, corrected to deduct interest_charged
+                    # Double Interest Fix: Don't apply interest here, it is applied in the common block below.
+                    # context.flows[acc.id]["interest"] -= int(interest_charged)
+                    # context.account_balances[acc.id] -= int(interest_charged) 
                     
                     if monthly_rate > 0:
                         numerator = monthly_rate * abs(current_bal)
