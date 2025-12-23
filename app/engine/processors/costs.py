@@ -8,6 +8,8 @@ def process_costs(scenario: models.Scenario, context: ProjectionContext):
 
     for cost in unique_costs:
         if cost.account_id not in context.account_balances: continue
+        if cost.start_date is None: continue
+        
         if not (cost.start_date.replace(day=1) <= context.month_start and (cost.end_date is None or cost.end_date >= context.month_start)): continue
 
         value = int(cost.value)
@@ -30,4 +32,4 @@ def process_costs(scenario: models.Scenario, context: ProjectionContext):
             
         if should:
             context.account_balances[cost.account_id] -= value
-            context.flows[cost.account_id]["costs"] += value / 100.0
+            context.flows[cost.account_id]["costs"] += value

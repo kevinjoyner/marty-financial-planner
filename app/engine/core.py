@@ -47,6 +47,9 @@ def apply_simulation_overrides(scenario: models.Scenario, overrides: List[schema
         elif override.type == 'rule':
             rule = next((r for r in scenario.automation_rules if r.id == override.id), None)
             if rule and hasattr(rule, override.field): setattr(rule, override.field, val)
+        elif override.type == 'strategy' or override.type == 'decumulation_strategy':
+            strat = next((s for s in scenario.decumulation_strategies if s.id == override.id), None)
+            if strat and hasattr(strat, override.field): setattr(strat, override.field, val)
 
 def run_projection(db: Session, scenario: models.Scenario, months: int, overrides: list = None) -> schemas.ProjectionResult:
     if overrides is None: overrides = []
@@ -72,10 +75,24 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
 
     # Initial Data Point
     initial_breakdown, initial_total = calculate_gbp_balances(context.account_balances, all_accounts, scenario.gbp_to_usd_rate, start_date)
+    # Calculate Initial Liquid Assets
+    initial_liquid = 0
+    for acc in all_accounts:
+        val_gbp = initial_breakdown.get(acc.id, 0)
+        type_val = _get_enum_value(acc.account_type)
+        wrapper_val = _get_enum_value(acc.tax_wrapper)
+        is_liquid = True
+        if type_val in ["Mortgage", "Loan", "Property", "Main Residence", "RSU Grant"]:
+            is_liquid = False
+        if wrapper_val in ["Pension", "Lifetime ISA"]:
+            is_liquid = False
+        if is_liquid:
+            initial_liquid += val_gbp
+
     context.data_points.append(schemas.ProjectionDataPoint(
         date=start_date,
         balance=initial_total,
-        liquid_assets=0,
+        liquid_assets=initial_liquid,
         account_balances=initial_breakdown,
         flows={}
     ))
@@ -189,7 +206,7 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
         context.data_points.append(schemas.ProjectionDataPoint(
             date=end_of_month,
             balance=current_total,
-            liquid_assets=liquid_val / 100.0, 
+            liquid_assets=liquid_val, 
             account_balances=current_breakdown,
             flows=flows_for_schema
         ))

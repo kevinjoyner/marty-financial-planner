@@ -82,18 +82,146 @@ class ScenarioHistory(BaseModel):
     action_description: str
     model_config = ConfigDict(from_attributes=True)
 
+class ImportIncomeSource(BaseModel):
+    name: str
+    amount: Optional[int] = None
+    net_value: int
+    cadence: Cadence
+    start_date: date
+    end_date: Optional[date] = None
+    currency: Currency = Currency.GBP
+    growth_rate: float = 0.0
+    is_pre_tax: bool = False
+    salary_sacrifice_value: int = 0
+    taxable_benefit_value: int = 0
+    employer_pension_contribution: int = 0
+    notes: Optional[str] = None
+    
+    # Relations (ID only)
+    account_id: Optional[int] = None
+    salary_sacrifice_account_id: Optional[int] = None
+
+class ImportOwner(BaseModel):
+    id: Optional[int] = None
+    name: str
+    birth_date: Optional[date] = None
+    retirement_age: int = 65
+    notes: Optional[str] = None
+    income_sources: List[ImportIncomeSource] = []
+
+class ImportAccount(BaseModel):
+    id: Optional[int] = None
+    name: str
+    notes: Optional[str] = None
+    account_type: AccountType
+    tax_wrapper: TaxWrapper = TaxWrapper.NONE
+    currency: Currency = Currency.GBP
+    starting_balance: int
+    min_balance: Optional[int] = None
+    interest_rate: float = 0.0
+    book_cost: Optional[int] = None
+    
+    # Mortgage
+    original_loan_amount: Optional[int] = None
+    mortgage_start_date: Optional[date] = None
+    amortisation_period_years: Optional[int] = None
+    fixed_interest_rate: Optional[float] = None
+    fixed_rate_period_years: Optional[int] = None
+    payment_from_account_id: Optional[int] = None
+    is_primary_account: bool = False
+    
+    # RSU
+    grant_date: Optional[date] = None
+    vesting_schedule: Optional[List[Dict[str, Any]]] = None 
+    vesting_cadence: Optional[str] = "monthly"
+    unit_price: Optional[int] = None
+    rsu_target_account_id: Optional[int] = None
+    
+    # Owners linkage
+    owners: List[Any] = []
+
+class ImportCost(BaseModel):
+    name: str
+    value: int
+    cadence: Cadence
+    start_date: date
+    end_date: Optional[date] = None
+    currency: Currency = Currency.GBP
+    growth_rate: float = 0.0
+    is_recurring: bool = True
+    notes: Optional[str] = None
+    account_id: int
+
+class ImportTransfer(BaseModel):
+    name: str
+    value: int
+    cadence: Cadence
+    start_date: date
+    end_date: Optional[date] = None
+    currency: Currency = Currency.GBP
+    show_on_chart: bool = False
+    notes: Optional[str] = None
+    from_account_id: int
+    to_account_id: int
+
+class ImportFinancialEvent(BaseModel):
+    name: str
+    value: int
+    event_date: date
+    event_type: str
+    currency: Currency = Currency.GBP
+    show_on_chart: bool = False
+    notes: Optional[str] = None
+    from_account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
+
+class ImportTaxLimit(BaseModel):
+    name: str
+    amount: int
+    wrappers: List[str]
+    account_types: Optional[List[str]] = None
+    start_date: date
+    end_date: Optional[date] = None
+    frequency: str = "Annually"
+
+class ImportAutomationRule(BaseModel):
+    name: str
+    rule_type: str
+    source_account_id: int
+    target_account_id: Optional[int] = None
+    trigger_value: int
+    transfer_value: Optional[int] = None
+    transfer_cap: Optional[int] = None
+    cadence: str = "monthly"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: int = 0
+    notes: Optional[str] = None
+
+class ImportChartAnnotation(BaseModel):
+    date: date
+    label: str
+    annotation_type: str = "manual"
+
+class ImportDecumulationStrategy(BaseModel):
+    name: str
+    strategy_type: str = "Standard"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    enabled: bool = True
+
 class ScenarioImport(BaseModel):
     name: str
     description: Optional[str] = None
     start_date: date
     gbp_to_usd_rate: Optional[float] = 1.25
     
-    owners: List[Dict[str, Any]] = []
-    accounts: List[Dict[str, Any]] = []
-    costs: List[Dict[str, Any]] = []
-    transfers: List[Dict[str, Any]] = []
-    financial_events: List[Dict[str, Any]] = []
-    tax_limits: List[Dict[str, Any]] = []
-    automation_rules: List[Dict[str, Any]] = []
-    chart_annotations: List[Dict[str, Any]] = []
-    decumulation_strategies: List[Dict[str, Any]] = []
+    owners: List[ImportOwner] = []
+    accounts: List[ImportAccount] = []
+    costs: List[ImportCost] = []
+    transfers: List[ImportTransfer] = []
+    financial_events: List[ImportFinancialEvent] = []
+    tax_limits: List[ImportTaxLimit] = []
+    automation_rules: List[ImportAutomationRule] = []
+    chart_annotations: List[ImportChartAnnotation] = []
+    decumulation_strategies: List[ImportDecumulationStrategy] = []

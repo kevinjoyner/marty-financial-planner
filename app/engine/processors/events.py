@@ -12,6 +12,7 @@ def process_events(scenario: models.Scenario, context: ProjectionContext):
 
     for event in unique_events:
         # Check date falls within this month
+        if event.event_date is None: continue
         if not (event.event_date >= context.month_start and event.event_date < next_month_start and event.event_date >= scenario.start_date):
             continue
             
@@ -33,7 +34,7 @@ def process_events(scenario: models.Scenario, context: ProjectionContext):
             
             context.account_balances[event.from_account_id] += val
             context.account_book_costs[event.from_account_id] += val 
-            context.flows[event.from_account_id]["events"] += val / 100.0
+            context.flows[event.from_account_id]["events"] += val
 
         elif is_transfer and event.from_account_id in context.account_balances and event.to_account_id in context.account_balances:
             val = int(event.value)
@@ -62,11 +63,11 @@ def process_events(scenario: models.Scenario, context: ProjectionContext):
 
             context.account_balances[event.from_account_id] -= val
             context.account_book_costs[event.from_account_id] -= cost_portion 
-            context.flows[event.from_account_id]["transfers_out"] += val / 100.0
-            context.flows[event.from_account_id]["cgt"] += cgt_tax / 100.0
+            context.flows[event.from_account_id]["transfers_out"] += val
+            context.flows[event.from_account_id]["cgt"] += cgt_tax
             
             net_received = val - cgt_tax
             context.account_balances[event.to_account_id] += net_received
             context.account_book_costs[event.to_account_id] += net_received
-            context.flows[event.to_account_id]["transfers_in"] += net_received / 100.0
+            context.flows[event.to_account_id]["transfers_in"] += net_received
             track_contribution(context, event.to_account_id, net_received)

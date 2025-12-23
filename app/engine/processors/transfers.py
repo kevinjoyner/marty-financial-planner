@@ -26,11 +26,14 @@ def process_transfers(scenario: models.Scenario, context: ProjectionContext):
         cadence_str = transfer.cadence.value if hasattr(transfer.cadence, 'value') else str(transfer.cadence)
 
         should = False
+        start_month = transfer.start_date.month if transfer.start_date else 1
+        start_year = transfer.start_date.year if transfer.start_date else context.month_start.year
+
         if cadence_str == 'once':
-             if context.month_start.year == transfer.start_date.year and context.month_start.month == transfer.start_date.month: should = True
+             if transfer.start_date and context.month_start.year == start_year and context.month_start.month == start_month: should = True
         elif cadence_str == 'monthly': should = True
         elif cadence_str == 'quarterly' and context.month_start.month in [1, 4, 7, 10]: should = True
-        elif cadence_str == 'annually' and context.month_start.month == transfer.start_date.month: should = True
+        elif cadence_str == 'annually' and context.month_start.month == start_month: should = True
             
         if should:
             if transfer.show_on_chart:
@@ -57,10 +60,10 @@ def process_transfers(scenario: models.Scenario, context: ProjectionContext):
 
             context.account_balances[transfer.from_account_id] -= value
             context.account_book_costs[transfer.from_account_id] -= cost_portion 
-            context.flows[transfer.from_account_id]["transfers_out"] += value / 100.0
-            context.flows[transfer.from_account_id]["cgt"] += cgt_tax / 100.0 
+            context.flows[transfer.from_account_id]["transfers_out"] += value
+            context.flows[transfer.from_account_id]["cgt"] += cgt_tax 
             net_received = value - cgt_tax 
             context.account_balances[transfer.to_account_id] += net_received
             context.account_book_costs[transfer.to_account_id] += net_received 
-            context.flows[transfer.to_account_id]["transfers_in"] += net_received / 100.0
+            context.flows[transfer.to_account_id]["transfers_in"] += net_received
             track_contribution(context, transfer.to_account_id, net_received)

@@ -33,7 +33,7 @@ def process_growth(scenario: models.Scenario, context: ProjectionContext):
             if acc.id in context.flows:
                 if 'growth' not in context.flows[acc.id]:
                      context.flows[acc.id]['growth'] = 0.0
-                context.flows[acc.id]['growth'] += growth_amount / 100.0
+                context.flows[acc.id]['growth'] += growth_amount
             
             # 5. Tax Logic: Savings Interest
             # If this is a Cash account and NOT in a tax wrapper, it counts towards the Personal Savings Allowance.

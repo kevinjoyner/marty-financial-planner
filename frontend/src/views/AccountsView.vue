@@ -46,13 +46,28 @@ const formatPounds = (val) => formatCurrency(val)
 const openEdit = (acc) => {
     editingAccount.value = acc
     const currentOwnerIds = acc.owners ? acc.owners.map(o => o.id) : []
+    
+    // Default Schedule if missing
+    let schedule = acc.vesting_schedule
+    if (!Array.isArray(schedule) || schedule.length === 0) {
+        schedule = [
+            { year: 1, percent: 25 },
+            { year: 2, percent: 25 },
+            { year: 3, percent: 25 },
+            { year: 4, percent: 25 }
+        ]
+    }
+    // Sort just in case
+    schedule.sort((a,b) => a.year - b.year)
+
     form.value = { 
         ...acc, 
         starting_balance: acc.starting_balance / 100, 
         original_loan_amount: acc.original_loan_amount ? acc.original_loan_amount / 100 : null,
         unit_price: acc.unit_price ? acc.unit_price / 100 : null,
         owner_ids: currentOwnerIds,
-        vesting_cadence: acc.vesting_cadence || 'monthly'
+        vesting_cadence: acc.vesting_cadence || 'monthly',
+        vesting_schedule: JSON.parse(JSON.stringify(schedule)) // Deep copy to avoid editing store directly
     }
 }
 
@@ -66,7 +81,13 @@ const openCreate = () => {
         interest_rate: 0, 
         currency: 'GBP',
         owner_ids: [],
-        vesting_cadence: 'monthly'
+        vesting_cadence: 'monthly',
+        vesting_schedule: [
+            { year: 1, percent: 25 },
+            { year: 2, percent: 25 },
+            { year: 3, percent: 25 },
+            { year: 4, percent: 25 }
+        ]
     }
     if (owners.value.length === 1) {
         newAcc.owner_ids = [owners.value[0].id]
@@ -75,8 +96,26 @@ const openCreate = () => {
     form.value = { ...newAcc }
 }
 
+const addVestingYear = () => {
+    const currentMax = form.value.vesting_schedule.length > 0 
+        ? Math.max(...form.value.vesting_schedule.map(x => x.year)) 
+        : 0;
+    form.value.vesting_schedule.push({ year: currentMax + 1, percent: 0 });
+}
+
+const removeVestingYear = (index) => {
+    form.value.vesting_schedule.splice(index, 1);
+}
+
 const save = async () => {
     const payload = { ...form.value }
+    // Clean up percent - ensure numbers
+    if (payload.vesting_schedule) {
+        payload.vesting_schedule = payload.vesting_schedule.map(x => ({
+            year: parseInt(x.year),
+            percent: parseFloat(x.percent)
+        }))
+    }
     await store.saveEntity('account', editingAccount.value.id, payload, `Saved ${form.value.name}`)
     editingAccount.value = null 
 }
@@ -273,7 +312,34 @@ const goToPeople = () => router.push('/tax')
                                 <input type="number" v-model="form.interest_rate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Vesting Schedule</label>
+                                <div class="bg-white border border-slate-200 rounded-md overflow-hidden">
+                                     <table class="w-full text-sm">
+                                         <thead class="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                                             <tr><th class="px-3 py-2 text-left">Year</th><th class="px-3 py-2 text-right">Vested %</th><th class="px-3 py-2 w-10"></th></tr>
+                                         </thead>
+                                         <tbody class="divide-y divide-slate-100">
+                                             <tr v-for="(row, idx) in form.vesting_schedule" :key="idx">
+                                                 <td class="px-3 py-2 text-slate-700">Year {{ row.year }}</td>
+                                                 <td class="px-3 py-2">
+                                                     <div class="relative">
+                                                         <input type="number" v-model="row.percent" class="w-full border-0 border-b border-slate-200 focus:ring-0 focus:border-primary pl-0 pr-4 py-1 text-right text-sm" placeholder="25">
+                                                         <span class="absolute right-0 top-1 text-slate-400 pointer-events-none">%</span>
+                                                     </div>
+                                                 </td>
+                                                 <td class="px-3 py-2 text-center">
+                                                     <button type="button" @click="removeVestingYear(idx)" class="text-slate-300 hover:text-red-500 transition-colors"><span class="sr-only">Remove</span>&times;</button>
+                                                 </td>
+                                             </tr>
+                                         </tbody>
+                                     </table>
+                                     <div class="bg-slate-50 px-3 py-2 border-t border-slate-200">
+                                         <button type="button" @click="addVestingYear" class="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1">+ Add Year</button>
+                                     </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block text-sm font-medium text-slate-700">Vesting Cadence</label>

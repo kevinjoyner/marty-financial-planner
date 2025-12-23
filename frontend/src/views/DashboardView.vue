@@ -220,18 +220,18 @@ const calculateMetrics = (data) => {
         store.scenario.accounts.forEach(acc => {
             if (acc.account_type !== 'RSU Grant') {
                 const bal = firstPoint.account_balances[acc.id] || 0;
-                current_net_worth_pence += Math.round(bal * 100); 
+                current_net_worth_pence += Math.round(bal); 
             }
         });
     }
 
-    const projected_net_worth_pence = Math.round(lastPoint.balance * 100); 
+    const projected_net_worth_pence = Math.round(lastPoint.balance); 
 
     let net_contributions_pence = 0;
     data.data_points.forEach(dp => {
         Object.values(dp.flows).forEach(f => {
             const flow_val = (f.income + (f.employer_contribution || 0) - f.costs - f.tax - f.cgt);
-            net_contributions_pence += (flow_val * 100);
+            net_contributions_pence += flow_val;
         });
     });
     net_contributions_pence = Math.round(net_contributions_pence); 

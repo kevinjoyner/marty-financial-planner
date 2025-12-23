@@ -11,7 +11,7 @@ def process_interest(scenario: models.Scenario, context: ProjectionContext):
                 fixed_end_date = acc.mortgage_start_date + relativedelta(years=acc.fixed_rate_period_years)
                 if context.month_start < fixed_end_date: safe_interest_rate = acc.fixed_interest_rate
             monthly_rate = safe_interest_rate / 100 / 12; interest_charged = abs(context.account_balances[acc.id]) * monthly_rate
-            context.account_balances[acc.id] -= round(interest_charged); context.flows[acc.id]["interest"] -= round(interest_charged) / 100.0
+            context.account_balances[acc.id] -= round(interest_charged); context.flows[acc.id]["interest"] -= round(interest_charged)
         elif acc.account_type == enums.AccountType.RSU_GRANT: pass
         elif acc.account_type != enums.AccountType.MORTGAGE:
             safe_interest_rate = acc.interest_rate or 0.0
@@ -44,4 +44,4 @@ def process_interest(scenario: models.Scenario, context: ProjectionContext):
                         tax_deducted = 0
                 
                 interest_net_int = interest_gross_int - tax_deducted
-                context.account_balances[acc.id] += interest_net_int; context.flows[acc.id]["interest"] += interest_gross_int / 100.0; context.flows[acc.id]["tax"] += tax_deducted / 100.0
+                context.account_balances[acc.id] += interest_net_int; context.flows[acc.id]["interest"] += interest_gross_int; context.flows[acc.id]["tax"] += tax_deducted

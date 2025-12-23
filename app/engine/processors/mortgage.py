@@ -38,6 +38,14 @@ def process_mortgages(scenario: models.Scenario, context: ProjectionContext):
                 
                 if remaining_months > 0:
                     monthly_rate = safe_interest_rate / 100 / 12
+                    interest_charged = abs(current_bal) * monthly_rate
+                    # Check for overpayments
+                    expected_bal = current_bal # Simplified for now
+                    
+                    if "interest" not in context.flows[acc.id]: context.flows[acc.id]["interest"] = 0
+                    context.flows[acc.id]["interest"] -= int(interest_charged)
+                    context.account_balances[acc.id] -= int(interest_charged) # This line was syntactically incorrect in the request, corrected to deduct interest_charged
+                    
                     if monthly_rate > 0:
                         numerator = monthly_rate * abs(current_bal)
                         denominator = 1 - (1 + monthly_rate) ** (-remaining_months)
@@ -58,12 +66,12 @@ def process_mortgages(scenario: models.Scenario, context: ProjectionContext):
                 context.account_balances[payment_account_id] -= monthly_repayment
                 if payment_account_id not in context.flows: context.flows[payment_account_id] = {}
                 if "mortgage_payments_out" not in context.flows[payment_account_id]: context.flows[payment_account_id]["mortgage_payments_out"] = 0
-                context.flows[payment_account_id]["mortgage_payments_out"] += monthly_repayment / 100.0
+                context.flows[payment_account_id]["mortgage_payments_out"] += monthly_repayment
 
             context.account_balances[acc.id] += monthly_repayment
             if acc.id not in context.flows: context.flows[acc.id] = {}
             if "mortgage_repayments_in" not in context.flows[acc.id]: context.flows[acc.id]["mortgage_repayments_in"] = 0
-            context.flows[acc.id]["mortgage_repayments_in"] += monthly_repayment / 100.0
+            context.flows[acc.id]["mortgage_repayments_in"] += monthly_repayment
 
             # Calculate Interest Component for reporting
             # Interest is charged on the balance BEFORE repayment, or after?
@@ -94,4 +102,4 @@ def process_mortgages(scenario: models.Scenario, context: ProjectionContext):
             # Interest is a cost, so negative flow? Or just magnitude?
             # The test expects interest < 0?
             # "test_engine_standard_mortgage asserts interest < 0"
-            context.flows[acc.id]["interest"] -= interest_charge_int / 100.0
+            context.flows[acc.id]["interest"] -= interest_charge_int

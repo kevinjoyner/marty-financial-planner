@@ -197,7 +197,7 @@ def _filter_data(model_cls, data: Dict[str, Any]) -> Dict[str, Any]:
                 
     return result
 
-def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
+def import_scenario_data(db: Session, scenario_id: int, data: schemas.ScenarioImport):
     """
     Full-fidelity import of a scenario structure.
     Recursively creates Owners, Accounts, Rules, Costs, etc.
@@ -209,10 +209,11 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
 
     try:
         # Update Meta
-        if "name" in data: scenario.name = data["name"]
-        if "description" in data: scenario.description = data["description"]
-        if "start_date" in data: scenario.start_date = _safe_parse_date(data["start_date"])
-        if "gbp_to_usd_rate" in data: scenario.gbp_to_usd_rate = data["gbp_to_usd_rate"]
+        scenario.name = data.name
+        if data.description is not None: scenario.description = data.description
+        scenario.start_date = data.start_date
+        # Ensure fallback for existing Pydantic default if missing
+        if data.gbp_to_usd_rate is not None: scenario.gbp_to_usd_rate = data.gbp_to_usd_rate
         
         # 2. CLEAR EXISTING CONTENT (Do NOT delete the scenario itself)
         
@@ -221,8 +222,6 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             {models.Account.payment_from_account_id: None, models.Account.rsu_target_account_id: None},
             synchronize_session=False
         )
-        # Flush here instead of commit to keep it in one transaction if possible, 
-        # but the original code had commits. We will try to keep it transactional.
         db.flush() 
 
         # 2b. Delete simple dependents
@@ -236,7 +235,6 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
         )).delete(synchronize_session=False)
 
         # 2d. Delete Owners and Accounts
-        # Using ORM fetch + delete loop to ensure proper cascading of relationships (like secondary table)
         accounts = db.query(models.Account).filter(models.Account.scenario_id == scenario_id).all()
         for acc in accounts: db.delete(acc)
         
@@ -250,44 +248,43 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
         account_map = {} # old_id -> new_id
         
         # A. Owners (First pass - no income sources yet)
-        owners_data = data.get("owners", [])
-        deferred_income_sources = [] # (new_owner_id, source_data)
+        deferred_income_sources = [] # (new_owner_id, source_objects)
 
-        for owner_d in owners_data:
-            old_id = owner_d.get("id")
-            od = owner_d.copy()
-            # Explicitly remove relation keys not in column list
-            for k in ["id", "income_sources", "accounts"]: 
-                if k in od: del od[k]
-            if "birth_date" in od: od["birth_date"] = _safe_parse_date(od["birth_date"])
+        for owner_obj in data.owners:
+            od = owner_obj.model_dump()
+            old_id = od.pop("id", None)
             
-            # Filter
+            # Explicitly remove relation keys not in column list
+            # income_sources is in the Pydantic model (List) but not a column
+            # accounts is not in the Pydantic model but might be in the dict if dumped?
+            # Pydantic dump includes everything defined in the model.
+            
+            # Save income sources for later
+            inc_srcs = od.pop("income_sources", [])
+            
+            # Filter (Removes extra fields if any leached through)
             filtered_od = _filter_data(models.Owner, od)
             
             db_owner = models.Owner(scenario_id=scenario_id, **filtered_od)
             db.add(db_owner); db.flush()
             if old_id: owner_map[old_id] = db_owner.id
             
-            if "income_sources" in owner_d:
-                deferred_income_sources.append((db_owner.id, owner_d["income_sources"]))
+            if inc_srcs:
+                deferred_income_sources.append((db_owner.id, inc_srcs))
 
         # B. Accounts
-        accounts_data = data.get("accounts", [])
         deferred_account_links = [] # (db_acc, old_payment_id, old_rsu_id)
         deferred_owner_links = [] # (db_acc, list_of_old_owner_ids)
 
-        for acc_d in accounts_data:
-            old_id = acc_d.get("id")
-            ad = acc_d.copy()
+        for acc_obj in data.accounts:
+            ad = acc_obj.model_dump()
+            old_id = ad.pop("id", None)
             
             # Extract special fields
-            old_owners = ad.get("owners", []) # list of {name, id} or just ids
+            old_owners = ad.pop("owners", []) # list of ID or object? Pydantic says List[Any]
             old_payment_id = ad.pop("payment_from_account_id", None)
             old_rsu_id = ad.pop("rsu_target_account_id", None)
             
-            for k in ["id", "owners"]: 
-                if k in ad: del ad[k]
-
             # Filter
             filtered_ad = _filter_data(models.Account, ad)
 
@@ -302,7 +299,8 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
                 o_ids = []
                 for item in old_owners:
                     if isinstance(item, dict): o_ids.append(item.get("id"))
-                    else: o_ids.append(item)
+                    elif isinstance(item, int) or isinstance(item, str): o_ids.append(item)
+                    # Else? ignore
                 deferred_owner_links.append((db_acc, o_ids))
 
         # C. Link Accounts (Owners & Self-refs)
@@ -318,17 +316,23 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
 
         # D. Income Sources (Now we have owners and accounts)
         for new_owner_id, sources in deferred_income_sources:
-            for src in sources:
-                sd = src.copy()
+            # sources is a list of DICTS because it came from model_dump() of parent Owner
+            for sd in sources:
+                # no need to model_dump again if it's already a dict from parent dump
+                # BUT wait, Pydantic model_dump is recursive. So yes, sources are dicts.
+                
+                # Check if sources has keys or if it was objects.
+                # data.owners -> List[ImportOwner].
+                # owner_obj.model_dump() -> dict with "income_sources": [dict, dict]
+                # So sd is a dict.
+                
+                # sd might have ID we don't need for creation
                 if "id" in sd: del sd["id"]
-                if "owner_id" in sd: del sd["owner_id"] 
+                # owner_id is not in Pydantic model ImportIncomeSource so likely not in sd
                 
                 old_acc_id = sd.pop("account_id", None)
                 old_sac_id = sd.pop("salary_sacrifice_account_id", None)
                 
-                if "start_date" in sd: sd["start_date"] = _safe_parse_date(sd["start_date"])
-                if "end_date" in sd: sd["end_date"] = _safe_parse_date(sd["end_date"])
-
                 # Filter
                 filtered_sd = _filter_data(models.IncomeSource, sd)
 
@@ -339,14 +343,9 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
                 db.add(db_inc)
 
         # E. Costs
-        for item in data.get("costs", []):
-            d = item.copy()
+        for item in data.costs:
+            d = item.model_dump()
             old_acc_id = d.pop("account_id", None)
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            
-            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
-            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
             
             # Filter
             filtered_d = _filter_data(models.Cost, d)
@@ -356,14 +355,10 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             db.add(obj)
 
         # F. Financial Events
-        for item in data.get("financial_events", []):
-            d = item.copy()
+        for item in data.financial_events:
+            d = item.model_dump()
             old_from = d.pop("from_account_id", None)
             old_to = d.pop("to_account_id", None)
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            
-            if "event_date" in d: d["event_date"] = _safe_parse_date(d["event_date"])
             
             # Filter
             filtered_d = _filter_data(models.FinancialEvent, d)
@@ -374,15 +369,10 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             db.add(obj)
 
         # G. Transfers
-        for item in data.get("transfers", []):
-            d = item.copy()
+        for item in data.transfers:
+            d = item.model_dump()
             old_from = d.pop("from_account_id", None)
             old_to = d.pop("to_account_id", None)
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            
-            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
-            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
             
             # Filter
             filtered_d = _filter_data(models.Transfer, d)
@@ -394,15 +384,10 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
                 db.add(obj)
 
         # H. Automation Rules
-        for item in data.get("automation_rules", []):
-            d = item.copy()
+        for item in data.automation_rules:
+            d = item.model_dump()
             old_src = d.pop("source_account_id", None)
             old_tgt = d.pop("target_account_id", None)
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            
-            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
-            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
             
             # Filter
             filtered_d = _filter_data(models.AutomationRule, d)
@@ -413,41 +398,24 @@ def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
             db.add(obj)
 
         # I. Tax Limits
-        for item in data.get("tax_limits", []):
-            d = item.copy()
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
-            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
-            
+        for item in data.tax_limits:
+            d = item.model_dump()
             # Filter
             filtered_d = _filter_data(models.TaxLimit, d)
-            
             db.add(models.TaxLimit(scenario_id=scenario_id, **filtered_d))
 
         # J. Decumulation Strategies
-        for item in data.get("decumulation_strategies", []):
-            d = item.copy()
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
-            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
-            
+        for item in data.decumulation_strategies:
+            d = item.model_dump()
             # Filter
             filtered_d = _filter_data(models.DecumulationStrategy, d)
-            
             db.add(models.DecumulationStrategy(scenario_id=scenario_id, **filtered_d))
 
         # K. Chart Annotations
-        for item in data.get("chart_annotations", []):
-            d = item.copy()
-            for k in ["id", "scenario_id"]: 
-                if k in d: del d[k]
-            if "date" in d: d["date"] = _safe_parse_date(d["date"])
-            
+        for item in data.chart_annotations:
+            d = item.model_dump()
             # Filter
             filtered_d = _filter_data(models.ChartAnnotation, d)
-            
             db.add(models.ChartAnnotation(scenario_id=scenario_id, **filtered_d))
 
         db.commit()

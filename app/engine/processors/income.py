@@ -15,6 +15,8 @@ def process_income(scenario: models.Scenario, context: ProjectionContext):
     for inc in all_income_sources:
         if inc.account_id not in context.account_balances: continue
         
+        if inc.start_date is None: continue
+        
         start_valid = inc.start_date.replace(day=1) <= context.month_start
         end_valid = (inc.end_date is None or inc.end_date >= context.month_start)
         if not (start_valid and end_valid): continue
@@ -45,7 +47,7 @@ def process_income(scenario: models.Scenario, context: ProjectionContext):
                     context.account_book_costs[sac_target] += emp_contrib 
                     if sac_target not in context.flows: context.flows[sac_target] = {} # Safety
                     if "employer_contribution" not in context.flows[sac_target]: context.flows[sac_target]["employer_contribution"] = 0
-                    context.flows[sac_target]["employer_contribution"] += emp_contrib / 100.0
+                    context.flows[sac_target]["employer_contribution"] += emp_contrib
                     track_contribution(context, sac_target, emp_contrib)
 
             # Salary Sacrifice
@@ -89,6 +91,6 @@ def process_income(scenario: models.Scenario, context: ProjectionContext):
 
             context.account_balances[inc.account_id] += final_credit
             context.account_book_costs[inc.account_id] += final_credit 
-            context.flows[inc.account_id]["income"] += gross_input / 100.0
-            context.flows[inc.account_id]["tax"] += tax_deducted / 100.0
+            context.flows[inc.account_id]["income"] += gross_input
+            context.flows[inc.account_id]["tax"] += tax_deducted
             track_contribution(context, inc.account_id, final_credit)

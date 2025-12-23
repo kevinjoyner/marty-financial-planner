@@ -24,6 +24,6 @@ def calculate_gbp_balances(current_balances, accounts, rate, month_start=None):
                 if acc.currency == enums.Currency.USD: val_gbp = round(val_gbp / rate)
         elif acc.currency == enums.Currency.USD:
             val_gbp = round(bal / rate)
-        gbp_balances[acc_id] = val_gbp / 100.0
+        gbp_balances[acc_id] = val_gbp
         total += val_gbp
-    return gbp_balances, total / 100.0
+    return gbp_balances, total

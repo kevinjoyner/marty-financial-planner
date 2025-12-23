@@ -8,22 +8,7 @@ import os
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
-def _normalize_legacy_data(data: Dict[str, Any]) -> Dict[str, Any]:
-    if "automation_rules" in data:
-        for r in data["automation_rules"]:
-            if "trigger_value" in r and r["trigger_value"] is not None: r["trigger_value"] = int(r["trigger_value"] * 100)
-            if "transfer_value" in r and r["transfer_value"] is not None: r["transfer_value"] = int(r["transfer_value"] * 100)
-    if "tax_limits" in data:
-        for t in data["tax_limits"]:
-            if "amount" in t and t["amount"] is not None: t["amount"] = int(t["amount"] * 100)
-    if "accounts" in data:
-        for a in data["accounts"]:
-            if "starting_balance" in a: a["starting_balance"] = int(a["starting_balance"])
-            if "original_loan_amount" in a and a["original_loan_amount"]: a["original_loan_amount"] = int(a["original_loan_amount"])
-    if "costs" in data:
-        for c in data["costs"]:
-            if "value" in c: c["value"] = int(c["value"])
-    return data
+from ..schemas.legacy import normalize_legacy_data
 
 @router.get("/", response_model=List[schemas.Scenario])
 def read_scenarios(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -58,28 +43,40 @@ def fork_scenario(scenario_id: int, req: schemas.ScenarioForkRequest, db: Sessio
     return new_scen
 
 @router.post("/import_new", response_model=schemas.Scenario)
-def import_new_scenario(scenario_data: schemas.ScenarioImport, is_legacy: bool = Query(False), db: Session = Depends(get_db)):
-    raw_data = scenario_data.model_dump()
-    clean_data = _normalize_legacy_data(raw_data) if is_legacy else raw_data
+def import_new_scenario(request_data: Dict[str, Any] = Body(...), is_legacy: bool = Query(False), db: Session = Depends(get_db)):
+    # 1. Legacy Normalization (Before Validation)
+    if is_legacy:
+        # We process the raw dict to fix types (Float -> Int Pence)
+        clean_data = normalize_legacy_data(request_data)
+    else:
+        clean_data = request_data
+
+    # 2. Strict Validation using Pydantic
+    try:
+        scenario_import = schemas.ScenarioImport.model_validate(clean_data)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Validation Error: {str(e)}")
     
     # DEV ENVIRONMENT TAGGING
     if os.getenv("ENVIRONMENT") == "development":
-        if not clean_data["name"].startswith("dev_"):
-            clean_data["name"] = f"dev_{clean_data['name']}"
+        if not scenario_import.name.startswith("dev_"):
+            scenario_import.name = f"dev_{scenario_import.name}"
     
-    # 1. Create the Shell Scenario
+    # 3. Create the Shell Scenario
     db_scenario = models.Scenario(
-        name=clean_data["name"],
-        description=clean_data.get("description"),
-        start_date=clean_data["start_date"],
-        gbp_to_usd_rate=clean_data.get("gbp_to_usd_rate", 1.25)
+        name=scenario_import.name,
+        description=scenario_import.description,
+        start_date=scenario_import.start_date,
+        gbp_to_usd_rate=scenario_import.gbp_to_usd_rate
     )
     db.add(db_scenario)
-    db.commit()
+    # db.commit() REMOVED to enable single transaction in CRUD
+    db.flush()
     db.refresh(db_scenario)
 
-    # 2. Use Shared CRUD logic to populate children
-    return crud.import_scenario_data(db, db_scenario.id, clean_data)
+    # 4. Use Shared CRUD logic to populate children
+    # We pass the Pydantic object now, not the dict
+    return crud.import_scenario_data(db, db_scenario.id, scenario_import)
 
 @router.post("/{scenario_id}/duplicate", response_model=schemas.Scenario)
 def duplicate_scenario(scenario_id: int, db: Session = Depends(get_db)):
