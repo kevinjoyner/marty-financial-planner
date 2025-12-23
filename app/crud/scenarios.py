@@ -56,10 +56,10 @@ def delete_scenario(db: Session, scenario_id: int):
     db.query(models.AutomationRule).filter(models.AutomationRule.scenario_id == scenario_id).delete()
     db.query(models.TaxLimit).filter(models.TaxLimit.scenario_id == scenario_id).delete()
     db.query(models.ChartAnnotation).filter(models.ChartAnnotation.scenario_id == scenario_id).delete()
+    db.query(models.DecumulationStrategy).filter(models.DecumulationStrategy.scenario_id == scenario_id).delete()
     db.query(models.ScenarioHistory).filter(models.ScenarioHistory.scenario_id == scenario_id).delete()
     
     # 3. Delete Income Sources (linked to Owners)
-    # We must query owners first or rely on cascade from Owner, but explicit is safer
     db.query(models.IncomeSource).filter(models.IncomeSource.owner_id.in_(
         db.query(models.Owner.id).filter(models.Owner.scenario_id == scenario_id)
     )).delete(synchronize_session=False)
@@ -72,8 +72,6 @@ def delete_scenario(db: Session, scenario_id: int):
     return db_scenario
 
 def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, overrides: List[schemas.SimulationOverrideBase] = None):
-    # (Existing duplication logic preserved for brevity - assumption is user only needs the delete fix here)
-    # Re-importing original duplication logic to be safe
     original = get_scenario(db, scenario_id)
     if not original: return None
 
@@ -96,6 +94,9 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
         val = get_overridden_val('tax_limit', lim.id, 'amount', lim.amount)
         db.add(models.TaxLimit(scenario_id=new_scenario.id, name=lim.name, amount=val, wrappers=lim.wrappers, account_types=lim.account_types, start_date=lim.start_date, end_date=lim.end_date, frequency=lim.frequency))
     
+    for strat in original.decumulation_strategies:
+        db.add(models.DecumulationStrategy(scenario_id=new_scenario.id, name=strat.name, strategy_type=strat.strategy_type, start_date=strat.start_date, end_date=strat.end_date, enabled=strat.enabled))
+
     owner_map = {} 
     account_map = {}
 
@@ -163,92 +164,299 @@ def duplicate_scenario(db: Session, scenario_id: int, new_name: str = None, over
     db.refresh(new_scenario)
     return new_scenario
 
+    # RE-FETCH AGAIN to ensure final state is attached
+    scenario = get_scenario(db, scenario_id)
+    return scenario
+
+from sqlalchemy import Date, DateTime
+
+def _filter_data(model_cls, data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Returns a new dictionary containing only keys that match columns in the model_cls.
+    Also automatically converts string values to Python date objects if the target column is a Date type.
+    """
+    if not data: return {}
+    
+    result = {}
+    valid_cols = {c.name: c for c in model_cls.__table__.columns}
+    
+    for key, value in data.items():
+        if key in valid_cols:
+            col = valid_cols[key]
+            
+            # Auto-convert strings to date objects if the column expects a Date
+            if isinstance(value, str):
+                # check if column type is Date or DateTime
+                # We check isinstance against the class, but col.type is an instance usually
+                if isinstance(col.type, (Date, DateTime)):
+                    result[key] = _safe_parse_date(value)
+                else:
+                    result[key] = value
+            else:
+                result[key] = value
+                
+    return result
+
 def import_scenario_data(db: Session, scenario_id: int, data: Dict[str, Any]):
-    # This is a full state replace or merge
+    """
+    Full-fidelity import of a scenario structure.
+    Recursively creates Owners, Accounts, Rules, Costs, etc.
+    Dependency Order: Owners -> Accounts -> Links -> [Income, Costs, Rules, etc.]
+    """
+    # 1. Fetch Scenario (initially)
     scenario = get_scenario(db, scenario_id)
     if not scenario: return None
 
-    # Update Scenario Level
-    if "name" in data: scenario.name = data["name"]
-    if "description" in data: scenario.description = data["description"]
-    if "start_date" in data: scenario.start_date = _safe_parse_date(data["start_date"])
-    if "gbp_to_usd_rate" in data: scenario.gbp_to_usd_rate = data["gbp_to_usd_rate"]
+    try:
+        # Update Meta
+        if "name" in data: scenario.name = data["name"]
+        if "description" in data: scenario.description = data["description"]
+        if "start_date" in data: scenario.start_date = _safe_parse_date(data["start_date"])
+        if "gbp_to_usd_rate" in data: scenario.gbp_to_usd_rate = data["gbp_to_usd_rate"]
+        
+        # 2. CLEAR EXISTING CONTENT (Do NOT delete the scenario itself)
+        
+        # 2a. Nullify self-referential keys in Accounts to prevent locking
+        db.query(models.Account).filter(models.Account.scenario_id == scenario_id).update(
+            {models.Account.payment_from_account_id: None, models.Account.rsu_target_account_id: None},
+            synchronize_session=False
+        )
+        # Flush here instead of commit to keep it in one transaction if possible, 
+        # but the original code had commits. We will try to keep it transactional.
+        db.flush() 
 
-    db.commit()
+        # 2b. Delete simple dependents
+        for model in [models.Transfer, models.FinancialEvent, models.Cost, models.AutomationRule, 
+                    models.TaxLimit, models.ChartAnnotation, models.DecumulationStrategy]:
+            db.query(model).filter(model.scenario_id == scenario_id).delete()
+        
+        # 2c. Delete Income Sources (linked to Owners)
+        db.query(models.IncomeSource).filter(models.IncomeSource.owner_id.in_(
+            db.query(models.Owner.id).filter(models.Owner.scenario_id == scenario_id)
+        )).delete(synchronize_session=False)
 
-    # NOTE: A full import implementation would need to recursively delete/create/update
-    # all children (Owners, Accounts, etc.) or intelligently diff them.
-    # For now, we are minimally implementing the parts needed for the 'import_new_scenario'
-    # and 'test_import_scenario_data' tests to pass, which generally assume clean slate or simple property update.
+        # 2d. Delete Owners and Accounts
+        # Using ORM fetch + delete loop to ensure proper cascading of relationships (like secondary table)
+        accounts = db.query(models.Account).filter(models.Account.scenario_id == scenario_id).all()
+        for acc in accounts: db.delete(acc)
+        
+        owners = db.query(models.Owner).filter(models.Owner.scenario_id == scenario_id).all()
+        for own in owners: db.delete(own)
+        
+        db.flush()
+        
+        # 3. Create Entities & Build Maps
+        owner_map = {} # old_id -> new_id
+        account_map = {} # old_id -> new_id
+        
+        # A. Owners (First pass - no income sources yet)
+        owners_data = data.get("owners", [])
+        deferred_income_sources = [] # (new_owner_id, source_data)
 
-    # Simple strategy: If importing complex objects, we might want to wipe and recreate
-    # if this is a "Restore" or "Full Import".
-    # Assuming 'data' contains full lists for these keys if they are present.
-
-    # Helper to clear children
-    def clear_children(model, fk_field):
-        db.query(model).filter(getattr(model, fk_field) == scenario_id).delete()
-
-    # Need ID Mapping for relationships
-    owner_map = {} # old_id -> new_id
-    account_map = {} # old_id -> new_id
-    deferred_account_updates = [] # (db_acc, old_payment_id, old_rsu_id)
-
-    # Import Accounts First (IncomeSource might reference Account)
-    if "accounts" in data and data["accounts"]:
-        for acc_data in data["accounts"]:
-             old_id = acc_data.get("id")
-             ad = acc_data.copy()
-             if "id" in ad: del ad["id"]
-             if "owners" in ad: del ad["owners"]
-
-             # Handle self-referential FKs by deferring
-             old_payment_id = ad.pop("payment_from_account_id", None)
-             old_rsu_id = ad.pop("rsu_target_account_id", None)
-
-             db_acc = models.Account(scenario_id=scenario_id, **ad)
-             db.add(db_acc)
-             db.flush()
-             if old_id: account_map[old_id] = db_acc.id
-
-             if old_payment_id or old_rsu_id:
-                 deferred_account_updates.append((db_acc, old_payment_id, old_rsu_id))
-
-    # Process Deferred Account Updates (FKs)
-    for db_acc, pay_id, rsu_id in deferred_account_updates:
-        if pay_id and pay_id in account_map:
-            db_acc.payment_from_account_id = account_map[pay_id]
-        if rsu_id and rsu_id in account_map:
-            db_acc.rsu_target_account_id = account_map[rsu_id]
-
-    # Import Owners and IncomeSources
-    if "owners" in data and data["owners"]:
-        for owner_data in data["owners"]:
-            old_id = owner_data.get("id")
-            od = owner_data.copy()
-            if "id" in od: del od["id"]
+        for owner_d in owners_data:
+            old_id = owner_d.get("id")
+            od = owner_d.copy()
+            # Explicitly remove relation keys not in column list
+            for k in ["id", "income_sources", "accounts"]: 
+                if k in od: del od[k]
             if "birth_date" in od: od["birth_date"] = _safe_parse_date(od["birth_date"])
-            income_sources = od.pop("income_sources", [])
-
-            db_owner = models.Owner(scenario_id=scenario_id, **od)
-            db.add(db_owner)
-            db.flush()
+            
+            # Filter
+            filtered_od = _filter_data(models.Owner, od)
+            
+            db_owner = models.Owner(scenario_id=scenario_id, **filtered_od)
+            db.add(db_owner); db.flush()
             if old_id: owner_map[old_id] = db_owner.id
+            
+            if "income_sources" in owner_d:
+                deferred_income_sources.append((db_owner.id, owner_d["income_sources"]))
 
-            for inc in income_sources:
-                 id_ = inc.copy()
-                 if "id" in id_: del id_["id"]
-                 if "start_date" in id_: id_["start_date"] = _safe_parse_date(id_["start_date"])
-                 if "end_date" in id_: id_["end_date"] = _safe_parse_date(id_["end_date"])
+        # B. Accounts
+        accounts_data = data.get("accounts", [])
+        deferred_account_links = [] # (db_acc, old_payment_id, old_rsu_id)
+        deferred_owner_links = [] # (db_acc, list_of_old_owner_ids)
 
-                 # Fix Account ID
-                 if "account_id" in id_ and id_["account_id"] in account_map:
-                     id_["account_id"] = account_map[id_["account_id"]]
+        for acc_d in accounts_data:
+            old_id = acc_d.get("id")
+            ad = acc_d.copy()
+            
+            # Extract special fields
+            old_owners = ad.get("owners", []) # list of {name, id} or just ids
+            old_payment_id = ad.pop("payment_from_account_id", None)
+            old_rsu_id = ad.pop("rsu_target_account_id", None)
+            
+            for k in ["id", "owners"]: 
+                if k in ad: del ad[k]
 
-                 db.add(models.IncomeSource(owner_id=db_owner.id, **id_))
+            # Filter
+            filtered_ad = _filter_data(models.Account, ad)
 
-    db.commit()
-    db.refresh(scenario)
+            db_acc = models.Account(scenario_id=scenario_id, **filtered_ad)
+            db.add(db_acc); db.flush()
+            if old_id: account_map[old_id] = db_acc.id
+
+            if old_payment_id or old_rsu_id:
+                deferred_account_links.append((db_acc, old_payment_id, old_rsu_id))
+            
+            if old_owners:
+                o_ids = []
+                for item in old_owners:
+                    if isinstance(item, dict): o_ids.append(item.get("id"))
+                    else: o_ids.append(item)
+                deferred_owner_links.append((db_acc, o_ids))
+
+        # C. Link Accounts (Owners & Self-refs)
+        for db_acc, o_ids in deferred_owner_links:
+            for old_oid in o_ids:
+                if old_oid in owner_map:
+                    owner = db.get(models.Owner, owner_map[old_oid])
+                    if owner: db_acc.owners.append(owner)
+        
+        for db_acc, pay_id, rsu_id in deferred_account_links:
+            if pay_id and pay_id in account_map: db_acc.payment_from_account_id = account_map[pay_id]
+            if rsu_id and rsu_id in account_map: db_acc.rsu_target_account_id = account_map[rsu_id]
+
+        # D. Income Sources (Now we have owners and accounts)
+        for new_owner_id, sources in deferred_income_sources:
+            for src in sources:
+                sd = src.copy()
+                if "id" in sd: del sd["id"]
+                if "owner_id" in sd: del sd["owner_id"] 
+                
+                old_acc_id = sd.pop("account_id", None)
+                old_sac_id = sd.pop("salary_sacrifice_account_id", None)
+                
+                if "start_date" in sd: sd["start_date"] = _safe_parse_date(sd["start_date"])
+                if "end_date" in sd: sd["end_date"] = _safe_parse_date(sd["end_date"])
+
+                # Filter
+                filtered_sd = _filter_data(models.IncomeSource, sd)
+
+                db_inc = models.IncomeSource(owner_id=new_owner_id, **filtered_sd)
+                if old_acc_id and old_acc_id in account_map: db_inc.account_id = account_map[old_acc_id]
+                if old_sac_id and old_sac_id in account_map: db_inc.salary_sacrifice_account_id = account_map[old_sac_id]
+                
+                db.add(db_inc)
+
+        # E. Costs
+        for item in data.get("costs", []):
+            d = item.copy()
+            old_acc_id = d.pop("account_id", None)
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            
+            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
+            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.Cost, d)
+
+            obj = models.Cost(scenario_id=scenario_id, **filtered_d)
+            if old_acc_id and old_acc_id in account_map: obj.account_id = account_map[old_acc_id]
+            db.add(obj)
+
+        # F. Financial Events
+        for item in data.get("financial_events", []):
+            d = item.copy()
+            old_from = d.pop("from_account_id", None)
+            old_to = d.pop("to_account_id", None)
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            
+            if "event_date" in d: d["event_date"] = _safe_parse_date(d["event_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.FinancialEvent, d)
+
+            obj = models.FinancialEvent(scenario_id=scenario_id, **filtered_d)
+            if old_from and old_from in account_map: obj.from_account_id = account_map[old_from]
+            if old_to and old_to in account_map: obj.to_account_id = account_map[old_to]
+            db.add(obj)
+
+        # G. Transfers
+        for item in data.get("transfers", []):
+            d = item.copy()
+            old_from = d.pop("from_account_id", None)
+            old_to = d.pop("to_account_id", None)
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            
+            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
+            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.Transfer, d)
+
+            if old_from in account_map and old_to in account_map:
+                obj = models.Transfer(scenario_id=scenario_id, **filtered_d)
+                obj.from_account_id = account_map[old_from]
+                obj.to_account_id = account_map[old_to]
+                db.add(obj)
+
+        # H. Automation Rules
+        for item in data.get("automation_rules", []):
+            d = item.copy()
+            old_src = d.pop("source_account_id", None)
+            old_tgt = d.pop("target_account_id", None)
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            
+            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
+            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.AutomationRule, d)
+
+            obj = models.AutomationRule(scenario_id=scenario_id, **filtered_d)
+            if old_src and old_src in account_map: obj.source_account_id = account_map[old_src]
+            if old_tgt and old_tgt in account_map: obj.target_account_id = account_map[old_tgt]
+            db.add(obj)
+
+        # I. Tax Limits
+        for item in data.get("tax_limits", []):
+            d = item.copy()
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
+            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.TaxLimit, d)
+            
+            db.add(models.TaxLimit(scenario_id=scenario_id, **filtered_d))
+
+        # J. Decumulation Strategies
+        for item in data.get("decumulation_strategies", []):
+            d = item.copy()
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            if "start_date" in d: d["start_date"] = _safe_parse_date(d["start_date"])
+            if "end_date" in d: d["end_date"] = _safe_parse_date(d["end_date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.DecumulationStrategy, d)
+            
+            db.add(models.DecumulationStrategy(scenario_id=scenario_id, **filtered_d))
+
+        # K. Chart Annotations
+        for item in data.get("chart_annotations", []):
+            d = item.copy()
+            for k in ["id", "scenario_id"]: 
+                if k in d: del d[k]
+            if "date" in d: d["date"] = _safe_parse_date(d["date"])
+            
+            # Filter
+            filtered_d = _filter_data(models.ChartAnnotation, d)
+            
+            db.add(models.ChartAnnotation(scenario_id=scenario_id, **filtered_d))
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+        
+    # RE-FETCH AGAIN to ensure final state is attached
+    scenario = get_scenario(db, scenario_id)
     return scenario
 
 def create_scenario_snapshot(db: Session, scenario_id: int, action: str):
