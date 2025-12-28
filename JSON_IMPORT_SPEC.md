@@ -49,7 +49,7 @@ This document defines the comprehensive syntax and schema for a valid JSON docum
 | :--- | :--- | :--- | :--- | :--- |
 | `name` | String | **Yes** | | Name of income source (e.g. "Salary"). |
 | `net_value` | Integer | **Yes** | | **Amount in Pence**. |
-| `cadence` | Enum | **Yes** | | `"monthly"`, `"annually"`, `"quarterly"`, `"weekly"`. |
+| `cadence` | Enum | **Yes** | | `"monthly"`, `"annually"`, `"quarterly"`, `"once"` (not "one-time"). |
 | `start_date` | Date | **Yes** | | Start date. |
 | `end_date` | Date | No | `null` | End date (optional). |
 | `currency` | Enum | No | `"GBP"` | `"GBP"`, `"USD"`, `"EUR"`. |
@@ -70,7 +70,7 @@ This document defines the comprehensive syntax and schema for a valid JSON docum
 | `id` | Integer | **Yes*** | | Local ID for linking. |
 | `name` | String | **Yes** | | Account name. |
 | `account_type` | Enum | **Yes** | | `Cash`, `Investment`, `Pension`, `Mortgage`, `Property`, `Loan`, `Main Residence`, `RSU Grant`. |
-| `tax_wrapper` | Enum | No | `"None"` | `None`, `ISA`, `Pension`, `General Investment Account`, `Lifetime ISA`, `Junior ISA`. |
+| `tax_wrapper` | Enum | No | `"None"` | `None`, `ISA`, `Pension`, `GIA` (General Investment Account), `Lifetime ISA`, `Junior ISA`. |
 | `starting_balance` | Integer | **Yes** | | **Pence**. Negative for liabilities/mortgages. |
 | `min_balance` | Integer | No | `null` | **Pence**. Minimum buffer. |
 | `interest_rate` | Float | No | `0.0` | Annual interest/growth rate %. |
