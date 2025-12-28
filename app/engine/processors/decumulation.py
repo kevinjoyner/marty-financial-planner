@@ -72,7 +72,7 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
         wrapper = _get_enum_value(acc.tax_wrapper)
 
         if a_type == "Investment" or a_type == "Cash": # Don't sell Property/Mortgage
-             if wrapper == "ISA":
+             if wrapper == "ISA" or wrapper == "Junior ISA":
                  isas.append(acc)
              elif wrapper == "Pension":
                  pensions.append(acc)
@@ -103,6 +103,16 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     # Process ISAs (Tax Free)
     for acc in isas:
         if remaining_deficit <= 0: break
+
+        # Check Junior ISA Age Lock (18)
+        wrapper = _get_enum_value(acc.tax_wrapper)
+        if wrapper == "Junior ISA" and acc.owners:
+             owner = acc.owners[0]
+             if owner.birth_date:
+                 access_date = owner.birth_date + relativedelta(years=18)
+                 if context.month_start < access_date:
+                     continue
+
         available = context.account_balances.get(acc.id, 0)
         to_withdraw = min(available, remaining_deficit)
 

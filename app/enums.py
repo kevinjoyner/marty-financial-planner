@@ -16,6 +16,7 @@ class TaxWrapper(str, enum.Enum):
     LISA = "Lifetime ISA"
     PENSION = "Pension"
     GIA = "GIA"
+    JUNIOR_ISA = "Junior ISA"
 
 class Currency(str, enum.Enum):
     GBP = "GBP"
