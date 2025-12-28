@@ -249,7 +249,7 @@ const goToPeople = () => router.push('/tax')
                         <div class="relative">
                             <select v-model="form.tax_wrapper" :disabled="isJointAccount || form.account_type === 'RSU Grant'" :class="['w-full border rounded-md px-3 py-2 text-sm', (isJointAccount || form.account_type === 'RSU Grant') ? 'bg-slate-100 text-slate-400 border-slate-200' : 'border-slate-300 bg-white']">
                                 <option value="None">None</option>
-                                <option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option>
+                                <option value="ISA">ISA</option><option value="Pension">Pension</option><option value="Lifetime ISA">Lifetime ISA</option><option value="Junior ISA">Junior ISA</option>
                             </select>
                             <Lock v-if="isJointAccount || form.account_type === 'RSU Grant'" class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3" />
                         </div>
