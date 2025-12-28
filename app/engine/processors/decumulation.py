@@ -2,6 +2,7 @@ from app import models, enums
 from app.engine.context import ProjectionContext
 from app.services.tax import TaxService
 from app.engine.helpers import _get_enum_value
+from dateutil.relativedelta import relativedelta
 
 def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     """
@@ -126,6 +127,15 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
     # Process Pensions (Taxable)
     for acc in pensions:
         if remaining_deficit <= 0: break
+
+        # Check Age Access (57)
+        if acc.owners:
+             owner = acc.owners[0]
+             if owner.birth_date:
+                 access_date = owner.birth_date + relativedelta(years=57)
+                 if context.month_start < access_date:
+                     continue
+
         available = context.account_balances.get(acc.id, 0)
 
         # We need NET `remaining_deficit`. So we need to withdraw GROSS.
