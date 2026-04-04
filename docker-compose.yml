@@ -10,17 +10,5 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - REPO_USER=${GH_USER}
-      - REPO_PASS=${GH_PAT}
-      - DOCKER_API_VERSION=1.44
-    command: --interval 300 --cleanup --label-enable
-    restart: unless-stopped
-
 volumes:
   marty_data:
