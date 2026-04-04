@@ -1,6 +1,9 @@
 {
   "name": "Marty Financial Planner",
-  "dockerComposeFile": ["../docker-compose.yml", "../docker-compose.dev.yml"],
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "../docker-compose.dev.yml"
+  ],
   "service": "app",
   "workspaceFolder": "/app",
   "features": {
@@ -29,8 +32,16 @@
       }
     }
   },
-  "postCreateCommand": "pip install --user -r requirements.txt",
-
+  "forwardPorts": [
+    5173
+  ],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
   // Tell VS Code to connect as our new non-root user.
   "remoteUser": "appuser"
 }

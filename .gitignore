@@ -23,3 +23,6 @@ frontend/prototype_*.html
 .devcontainer/*
 !.devcontainer/devcontainer.json
 examples/
+
+# Local Chrome Binary
+chrome-extracted/
