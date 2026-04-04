@@ -59,10 +59,162 @@ def create_owner(db: Session, scenario_id: int, owner: schemas.OwnerCreate):
     db.refresh(db_owner)
     return db_owner
 
-# ... (Include other CRUD methods here, keeping them standard) ...
-# For brevity, I am appending the rest of the file logic to ensure we don't break existing functionality
-# Ideally, we should cat the whole file, but I will assume standard CRUD for other entities hasn't changed.
-# To be safe, I will output the standard set of CRUD operations below.
+# --- ACCOUNTS ---
+def get_accounts(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Account).offset(skip).limit(limit).all()
+
+def get_account(db: Session, account_id: int):
+    return db.query(models.Account).filter(models.Account.id == account_id).first()
+
+def delete_account(db: Session, account_id: int):
+    db_item = get_account(db, account_id)
+    if db_item:
+        db_item.owners = []
+        db.query(models.Cost).filter(models.Cost.account_id == account_id).delete(synchronize_session=False)
+        db.query(models.IncomeSource).filter(
+            (models.IncomeSource.account_id == account_id) | 
+            (models.IncomeSource.salary_sacrifice_account_id == account_id)
+        ).delete(synchronize_session=False)
+        db.query(models.Transfer).filter(
+            (models.Transfer.from_account_id == account_id) | 
+            (models.Transfer.to_account_id == account_id)
+        ).delete(synchronize_session=False)
+        db.query(models.FinancialEvent).filter(
+            (models.FinancialEvent.from_account_id == account_id) | 
+            (models.FinancialEvent.to_account_id == account_id)
+        ).delete(synchronize_session=False)
+        db.query(models.AutomationRule).filter(
+            (models.AutomationRule.source_account_id == account_id) | 
+            (models.AutomationRule.target_account_id == account_id)
+        ).delete(synchronize_session=False)
+        
+        db.query(models.Account).filter(models.Account.payment_from_account_id == account_id).update({models.Account.payment_from_account_id: None}, synchronize_session=False)
+        db.query(models.Account).filter(models.Account.rsu_target_account_id == account_id).update({models.Account.rsu_target_account_id: None}, synchronize_session=False)
+
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- COSTS ---
+def get_costs(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Cost).offset(skip).limit(limit).all()
+
+def get_cost(db: Session, cost_id: int):
+    return db.query(models.Cost).filter(models.Cost.id == cost_id).first()
+
+def delete_cost(db: Session, cost_id: int):
+    db_item = get_cost(db, cost_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- INCOME SOURCES ---
+def get_income_sources(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.IncomeSource).offset(skip).limit(limit).all()
+
+def get_income_source(db: Session, income_source_id: int):
+    return db.query(models.IncomeSource).filter(models.IncomeSource.id == income_source_id).first()
+
+def delete_income_source(db: Session, income_source_id: int):
+    db_item = get_income_source(db, income_source_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- TRANSFERS ---
+def get_transfers(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Transfer).offset(skip).limit(limit).all()
+
+def get_transfer(db: Session, transfer_id: int):
+    return db.query(models.Transfer).filter(models.Transfer.id == transfer_id).first()
+
+def delete_transfer(db: Session, transfer_id: int):
+    db_item = get_transfer(db, transfer_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- FINANCIAL EVENTS ---
+def get_financial_events(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.FinancialEvent).offset(skip).limit(limit).all()
+
+def get_financial_event(db: Session, event_id: int):
+    return db.query(models.FinancialEvent).filter(models.FinancialEvent.id == event_id).first()
+
+def delete_financial_event(db: Session, event_id: int):
+    db_item = get_financial_event(db, event_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- AUTOMATION RULES ---
+def get_rules(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.AutomationRule).offset(skip).limit(limit).all()
+
+def get_rule(db: Session, rule_id: int):
+    return db.query(models.AutomationRule).filter(models.AutomationRule.id == rule_id).first()
+
+def delete_rule(db: Session, rule_id: int):
+    db_item = get_rule(db, rule_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+def reorder_rules(db: Session, rule_ids: list[int]):
+    rules = db.query(models.AutomationRule).filter(models.AutomationRule.id.in_(rule_ids)).all()
+    rule_map = {r.id: r for r in rules}
+    for idx, rid in enumerate(rule_ids):
+        if rid in rule_map:
+            rule_map[rid].priority = idx + 1
+    db.commit()
+    return True
+
+# --- OWNERS ---
+def get_owners(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Owner).offset(skip).limit(limit).all()
+
+def get_owner(db: Session, owner_id: int):
+    return db.query(models.Owner).filter(models.Owner.id == owner_id).first()
+
+def delete_owner(db: Session, owner_id: int):
+    db_item = get_owner(db, owner_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- TAX LIMITS ---
+def get_tax_limits(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.TaxLimit).offset(skip).limit(limit).all()
+
+def get_tax_limit(db: Session, limit_id: int):
+    return db.query(models.TaxLimit).filter(models.TaxLimit.id == limit_id).first()
+
+def delete_tax_limit(db: Session, limit_id: int):
+    db_item = get_tax_limit(db, limit_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
+# --- STRATEGIES ---
+def get_strategies_by_scenario(db: Session, scenario_id: int):
+    return db.query(models.Strategy).filter(models.Strategy.scenario_id == scenario_id).all()
+
+def get_strategy(db: Session, strategy_id: int):
+    return db.query(models.Strategy).filter(models.Strategy.id == strategy_id).first()
+
+def delete_strategy(db: Session, strategy_id: int):
+    db_item = get_strategy(db, strategy_id)
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
 
 def delete_entity(db: Session, entity_type: str, entity_id: int):
     model_map = {

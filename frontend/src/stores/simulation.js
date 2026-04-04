@@ -179,8 +179,14 @@ export const useSimulationStore = defineStore('simulation', () => {
         finally { isInternalLoading.value = false; }
     }
 
-    async function deleteEntity(type, id) {
-        if (!confirm("Are you sure you want to delete this?")) return false;
+    async function deleteEntity(type, id, skipConfirm = false) {
+        if (!skipConfirm) {
+            console.log(`[Store] Warning: deleteEntity called without skipConfirm for ${type} ${id}. Using native confirm as fallback.`);
+            const userConfirmed = window.confirm("Are you sure you want to delete this?");
+            if (!userConfirmed) return false;
+        }
+        
+        console.log(`[Store] Proceeding to delete ${type} ${id} via API...`);
         isInternalLoading.value = true;
         try {
             let url = '';

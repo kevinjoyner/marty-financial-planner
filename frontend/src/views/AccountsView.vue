@@ -2,15 +2,19 @@
 import { onMounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSimulationStore } from '../stores/simulation'
-import { Landmark, TrendingUp, PiggyBank, Home, Pencil, Plus, Users, UserPlus, Lock, Briefcase } from 'lucide-vue-next'
+import { Landmark, TrendingUp, PiggyBank, Home, Pencil, Plus, Users, UserPlus, Lock, Briefcase, AlertTriangle } from 'lucide-vue-next'
 import PinToggle from '../components/PinToggle.vue'
 import Drawer from '../components/Drawer.vue'
+import Modal from '../components/Modal.vue'
 import { formatCurrency } from '../utils/format'
 
 const store = useSimulationStore()
 const router = useRouter()
 const editingAccount = ref(null)
 const form = ref({}) 
+const showDeleteConfirm = ref(false)
+const dependenciesToResolve = ref([])
+const isDeleting = ref(false)
 
 onMounted(() => { if (!store.scenario) store.init() })
 
@@ -120,9 +124,105 @@ const save = async () => {
     editingAccount.value = null 
 }
 
-const remove = async () => {
-    const success = await store.deleteEntity('account', editingAccount.value.id);
-    if (success) editingAccount.value = null;
+const remove = () => {
+    const id = editingAccount.value.id;
+    const items = [];
+    const s = store.scenario;
+    if (s) {
+        s.income_sources?.forEach(inc => {
+            if (inc.account_id === id || inc.salary_sacrifice_account_id === id) {
+                items.push({ id: inc.id, type: 'income', name: inc.name, original: inc, action: 'delete', targetId: null });
+            }
+        });
+        s.costs?.forEach(cost => {
+            if (cost.account_id === id) {
+                items.push({ id: cost.id, type: 'cost', name: cost.name, original: cost, action: 'delete', targetId: null });
+            }
+        });
+        s.transfers?.forEach(t => {
+            if (t.from_account_id === id || t.to_account_id === id) {
+                const isTarget = t.to_account_id === id;
+                items.push({ id: t.id, type: 'transfer', name: t.name, original: t, action: 'delete', targetId: null });
+            }
+        });
+        s.financial_events?.forEach(e => {
+            if (e.from_account_id === id || e.to_account_id === id) {
+                const isTarget = e.to_account_id === id;
+                items.push({ id: e.id, type: 'event', name: e.name, original: e, action: 'delete', targetId: null });
+            }
+        });
+        s.automation_rules?.forEach(r => {
+            if (r.source_account_id === id || r.target_account_id === id) {
+                const isTarget = r.target_account_id === id;
+                items.push({ id: r.id, type: 'rule', name: r.name, original: r, action: 'delete', targetId: null });
+            }
+        });
+    }
+    dependenciesToResolve.value = items;
+    showDeleteConfirm.value = true;
+}
+
+const isOptionDisabled = (item, optionAccountId) => {
+    if (item.type === 'transfer' || item.type === 'event') {
+        const otherSideId = item.original.from_account_id === editingAccount.value.id 
+            ? item.original.to_account_id 
+            : item.original.from_account_id;
+        return optionAccountId === otherSideId;
+    }
+    if (item.type === 'rule') {
+        const otherSideId = item.original.source_account_id === editingAccount.value.id 
+            ? item.original.target_account_id 
+            : item.original.source_account_id;
+        return optionAccountId === otherSideId;
+    }
+    return false;
+}
+
+const confirmRemove = async () => {
+    isDeleting.value = true;
+    try {
+        const id = editingAccount.value.id;
+        // Process reassignments
+        for (const item of dependenciesToResolve.value) {
+            if (item.action === 'reassign' && item.targetId) {
+                const updatedObj = { ...item.original };
+                if (item.type === 'income') {
+                    if (updatedObj.account_id === id) updatedObj.account_id = item.targetId;
+                    if (updatedObj.salary_sacrifice_account_id === id) updatedObj.salary_sacrifice_account_id = item.targetId;
+                } else if (item.type === 'cost') {
+                    if (updatedObj.account_id === id) updatedObj.account_id = item.targetId;
+                } else if (item.type === 'transfer' || item.type === 'event') {
+                    if (updatedObj.from_account_id === id) updatedObj.from_account_id = item.targetId;
+                    if (updatedObj.to_account_id === id) updatedObj.to_account_id = item.targetId;
+                } else if (item.type === 'rule') {
+                    if (updatedObj.source_account_id === id) updatedObj.source_account_id = item.targetId;
+                    if (updatedObj.target_account_id === id) updatedObj.target_account_id = item.targetId;
+                }
+                
+                // For nested fields formatting, saveEntity does the appropriate Math.round if needed
+                // But since original holds raw DB values, we must convert currency back to pounds for saveEntity
+                
+                // Actually it's safer to use api.updateResource or format manually if we use saveEntity.
+                if (updatedObj.value !== undefined) updatedObj.value = updatedObj.value / 100;
+                if (updatedObj.net_value !== undefined) updatedObj.net_value = updatedObj.net_value / 100;
+                if (updatedObj.amount !== undefined) updatedObj.amount = updatedObj.amount / 100;
+                if (updatedObj.trigger_value !== undefined) updatedObj.trigger_value = updatedObj.trigger_value / 100;
+                if (updatedObj.transfer_value !== undefined && updatedObj.transfer_value !== null) updatedObj.transfer_value = updatedObj.transfer_value / 100;
+
+                await store.saveEntity(item.type, item.id, updatedObj, `Reassigned ${item.name}`);
+            }
+        }
+        
+        console.log(`[AccountsView] Confirmed 'Delete Account' clicked for ID:`, id);
+        const success = await store.deleteEntity('account', id, true);
+        console.log(`[AccountsView] Delete successful:`, success);
+        if (success) {
+            showDeleteConfirm.value = false;
+            editingAccount.value = null;
+        }
+    } finally {
+        isDeleting.value = false;
+    }
 }
 
 const goToPeople = () => router.push('/tax')
@@ -375,5 +475,58 @@ const goToPeople = () => router.push('/tax')
                 </div>
             </div>
         </Drawer>
+        
+        <Modal :isOpen="showDeleteConfirm" title="Delete Account" @close="showDeleteConfirm = false" maxWidth="max-w-xl">
+            <div class="p-6">
+                <p class="text-slate-600 mb-6 font-medium">Are you sure you want to delete this account? This will permanently remove it from your scenario.</p>
+                
+                <div v-if="dependenciesToResolve.length > 0" class="mb-6">
+                    <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                        <h4 class="text-amber-800 font-bold mb-3 flex items-center gap-2">
+                            <AlertTriangle class="w-4 h-4" /> Wait! This account is in use.
+                        </h4>
+                        <p class="text-sm text-amber-700 mb-4">Please specify how you'd like to handle the items connected to this account:</p>
+                        
+                        <div class="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
+                            <div v-for="(item, idx) in dependenciesToResolve" :key="idx" class="bg-white border border-amber-100 rounded-md p-3 text-sm flex flex-col gap-2 shadow-sm">
+                                <div class="font-semibold text-slate-800 flex items-center">
+                                    {{ item.name }} 
+                                    <span class="uppercase text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2">{{ item.type }}</span>
+                                </div>
+                                <div class="flex items-center gap-4 mt-1 border-t border-slate-50 pt-2">
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input type="radio" :name="`resolve-${idx}`" value="delete" v-model="item.action" class="text-red-500 focus:ring-red-500"> 
+                                        <span class="text-red-600 font-medium whitespace-nowrap">Delete Item</span>
+                                    </label>
+                                    
+                                    <label class="flex items-center gap-1.5 cursor-pointer flex-1">
+                                        <input type="radio" :name="`resolve-${idx}`" value="reassign" v-model="item.action" class="text-primary focus:ring-primary"> 
+                                        <span class="text-slate-700 font-medium whitespace-nowrap">Reassign:</span>
+                                        
+                                        <select v-model="item.targetId" :disabled="item.action !== 'reassign'" class="w-full border-slate-300 rounded text-sm py-1 disabled:bg-slate-50 disabled:text-slate-400">
+                                            <option :value="null">-- Select Account --</option>
+                                            <option v-for="a in accountOptions.filter(acc => acc.id !== editingAccount.id)" :key="a.id" 
+                                                    :value="a.id"
+                                                    :disabled="isOptionDisabled(item, a.id)"
+                                                    :title="isOptionDisabled(item, a.id) ? 'Cannot point to the same account' : ''">
+                                                {{ a.name }}
+                                            </option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" @click="showDeleteConfirm = false" :disabled="isDeleting" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors">Cancel</button>
+                    <button type="button" @click="confirmRemove" :disabled="isDeleting || (dependenciesToResolve.some(i => i.action === 'reassign' && !i.targetId))" class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 transition-colors">
+                        <span v-if="isDeleting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        {{ isDeleting ? 'Processing...' : 'Confirm Deletion' }}
+                    </button>
+                </div>
+            </div>
+        </Modal>
     </div>
 </template>

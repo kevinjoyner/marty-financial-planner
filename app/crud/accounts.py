@@ -91,6 +91,28 @@ def update_account(db: Session, account_id: int, account: schemas.AccountUpdate)
 def delete_account(db: Session, account_id: int):
     db_account = get_account(db, account_id=account_id)
     if not db_account: return None
+    db_account.owners = []
+    db.query(models.Cost).filter(models.Cost.account_id == account_id).delete(synchronize_session=False)
+    db.query(models.IncomeSource).filter(
+        (models.IncomeSource.account_id == account_id) | 
+        (models.IncomeSource.salary_sacrifice_account_id == account_id)
+    ).delete(synchronize_session=False)
+    db.query(models.Transfer).filter(
+        (models.Transfer.from_account_id == account_id) | 
+        (models.Transfer.to_account_id == account_id)
+    ).delete(synchronize_session=False)
+    db.query(models.FinancialEvent).filter(
+        (models.FinancialEvent.from_account_id == account_id) | 
+        (models.FinancialEvent.to_account_id == account_id)
+    ).delete(synchronize_session=False)
+    db.query(models.AutomationRule).filter(
+        (models.AutomationRule.source_account_id == account_id) | 
+        (models.AutomationRule.target_account_id == account_id)
+    ).delete(synchronize_session=False)
+    
+    db.query(models.Account).filter(models.Account.payment_from_account_id == account_id).update({models.Account.payment_from_account_id: None}, synchronize_session=False)
+    db.query(models.Account).filter(models.Account.rsu_target_account_id == account_id).update({models.Account.rsu_target_account_id: None}, synchronize_session=False)
+
     db.delete(db_account)
     db.commit()
     return db_account
