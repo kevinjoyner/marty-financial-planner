@@ -221,6 +221,9 @@ def solve_gross_withdrawal(
     if not owner_id:
         return net_amount # Cannot calc tax without owner
 
+    if net_amount <= 0:
+        return 0
+
     # Initial Guess: Net = Gross (0% tax)
     # Better Guess: Assume 20% basic rate on 75% taxable -> 15% effective.
     # Gross ~ Net / 0.85
@@ -245,12 +248,6 @@ def solve_gross_withdrawal(
         if abs(diff) < 5: # Within 5 pence
             return guess_gross
 
-        # Adjust guess
-        # If we are short (diff > 0), we need more gross.
-        # Adjustment = Diff / (1 - MarginalRate).
-        # Marginal Rate approx 0.15 to 0.45.
-        # Safe step: just add diff? No, that's too slow.
-        # Add diff * 1.2
         guess_gross += int(diff * 1.1)
 
-    return guess_gross
+    return max(0, guess_gross)
