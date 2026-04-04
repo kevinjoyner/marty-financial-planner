@@ -60,40 +60,11 @@ def create_owner(db: Session, scenario_id: int, owner: schemas.OwnerCreate):
     return db_owner
 
 # --- ACCOUNTS ---
-def get_accounts(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Account).offset(skip).limit(limit).all()
-
-def get_account(db: Session, account_id: int):
-    return db.query(models.Account).filter(models.Account.id == account_id).first()
-
-def delete_account(db: Session, account_id: int):
-    db_item = get_account(db, account_id)
-    if db_item:
-        db_item.owners = []
-        db.query(models.Cost).filter(models.Cost.account_id == account_id).delete(synchronize_session=False)
-        db.query(models.IncomeSource).filter(
-            (models.IncomeSource.account_id == account_id) | 
-            (models.IncomeSource.salary_sacrifice_account_id == account_id)
-        ).delete(synchronize_session=False)
-        db.query(models.Transfer).filter(
-            (models.Transfer.from_account_id == account_id) | 
-            (models.Transfer.to_account_id == account_id)
-        ).delete(synchronize_session=False)
-        db.query(models.FinancialEvent).filter(
-            (models.FinancialEvent.from_account_id == account_id) | 
-            (models.FinancialEvent.to_account_id == account_id)
-        ).delete(synchronize_session=False)
-        db.query(models.AutomationRule).filter(
-            (models.AutomationRule.source_account_id == account_id) | 
-            (models.AutomationRule.target_account_id == account_id)
-        ).delete(synchronize_session=False)
-        
-        db.query(models.Account).filter(models.Account.payment_from_account_id == account_id).update({models.Account.payment_from_account_id: None}, synchronize_session=False)
-        db.query(models.Account).filter(models.Account.rsu_target_account_id == account_id).update({models.Account.rsu_target_account_id: None}, synchronize_session=False)
-
-        db.delete(db_item)
-        db.commit()
-    return db_item
+# NOTE: Full account CRUD (including delete_account with cascade cleanup) lives in
+# app/crud/accounts.py and is the canonical implementation. The functions below
+# (get_accounts, get_account) are thin legacy wrappers kept for any direct callers
+# in this module. Do NOT add a delete_account here — it would be shadowed by the
+# package import and silently ignored.
 
 # --- COSTS ---
 def get_costs(db: Session, skip: int = 0, limit: int = 100):
