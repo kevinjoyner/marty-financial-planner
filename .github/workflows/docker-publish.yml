@@ -2,10 +2,10 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "staging", "main" ]
+    branches: [ "staging" ]
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "staging", "main" ]
+    branches: [ "staging" ]
 
 env:
   REGISTRY: ghcr.io
@@ -23,11 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 1. Install QEMU to allow building for ARM64 on an AMD64 runner
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # 2. Set up Docker Buildx (Required for multi-arch builds)
+      # 1. Set up Docker Buildx (Required for some advanced cache features)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -55,13 +51,13 @@ jobs:
             type=ref,event=branch
             type=sha
 
-      # 3. Build for BOTH platforms
+      # 2. Build for staging platform
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
