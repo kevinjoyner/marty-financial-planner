@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { useSimulationStore } from '../stores/simulation'
 import { Repeat, Pencil, ArrowRight, Calendar, Plus, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-vue-next'
 import Drawer from '../components/Drawer.vue'
+import PinToggle from '../components/PinToggle.vue'
 import { formatCurrency } from '../utils/format'
 
 const store = useSimulationStore()
@@ -253,7 +254,7 @@ const flowLabel = computed(() => {
                                 <td class="px-6 py-4 text-slate-600 whitespace-nowrap text-left">{{ item.dateLabel }}</td>
                                 <td class="px-6 py-4 capitalize text-slate-600">{{ item.cadence }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-emerald-600">+{{ formatPence(item.value) }}</td>
-                                <td class="px-6 py-4 text-center">
+                                        <td class="px-6 py-4 text-center">
                                     <button @click="openEdit(item)" class="p-1.5 text-slate-300 hover:text-primary hover:bg-slate-100 rounded-md transition-all"><Pencil class="w-4 h-4" /></button>
                                 </td>
                             </tr>
@@ -331,7 +332,7 @@ const flowLabel = computed(() => {
 
         <Drawer :isOpen="!!editingItem" :title="editingItem?.id === 'new' ? 'New Transaction' : 'Edit Transaction'" @close="editingItem = null" @save="save">
             <div v-if="editingItem" class="space-y-5">
-                
+
                 <div class="grid grid-cols-3 bg-slate-100 p-1 rounded-lg">
                     <button @click="form.flowType = 'expense'" :class="['py-1.5 text-sm font-medium rounded-md transition-all', form.flowType === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">Expense</button>
                     <button @click="form.flowType = 'income'" :class="['py-1.5 text-sm font-medium rounded-md transition-all', form.flowType === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">Income</button>
@@ -339,9 +340,12 @@ const flowLabel = computed(() => {
                 </div>
 
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label><input type="text" v-model="form.name" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"></div>
-                
+
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Amount</label>
+                        <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-value`, realId: editingItem.id, type: editingItem.type, field: 'value', label: `${editingItem.name} Amount`, value: editingItem.value / 100, format: 'currency' }" />
+                    </div>
                     <div class="relative">
                         <span class="absolute left-3 top-2 text-slate-400">£</span>
                         <input type="number" v-model="form.value" class="w-full border border-slate-300 rounded-md pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" min="0" step="0.01">
@@ -356,7 +360,10 @@ const flowLabel = computed(() => {
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Frequency</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Frequency</label>
+                        <PinToggle v-if="editingItem.id !== 'new' && form.frequencyMode !== 'once'" :item="{ id: `${editingItem.type}-${editingItem.id}-cadence`, realId: editingItem.id, type: editingItem.type, field: 'cadence', label: `${editingItem.name} Frequency`, value: editingItem.cadence, inputType: 'select', options: [{id:'monthly',name:'Monthly'},{id:'quarterly',name:'Quarterly'},{id:'annually',name:'Annually'}] }" />
+                    </div>
                     <select v-model="form.frequencyMode" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
                         <option value="once">One-off (Single Event)</option>
                         <option value="monthly">Monthly (Recurring)</option>
@@ -364,16 +371,31 @@ const flowLabel = computed(() => {
                         <option value="annually">Annually (Recurring)</option>
                     </select>
                 </div>
-                
+
                 <div v-if="form.flowType === 'transfer'" class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">From Account</label><select v-model="form.from_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="acc in accountOptions" :key="acc.id" :value="acc.id">{{ acc.name }}</option></select></div>
-                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">To Account</label><select v-model="form.to_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="acc in accountOptions" :key="acc.id" :value="acc.id">{{ acc.name }}</option></select></div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">From Account</label>
+                            <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-from`, realId: editingItem.id, type: editingItem.type, field: 'from_account_id', label: `${editingItem.name} From`, value: editingItem.from_account_id, inputType: 'select', options: accountOptions }" />
+                        </div>
+                        <select v-model="form.from_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="acc in accountOptions" :key="acc.id" :value="acc.id">{{ acc.name }}</option></select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">To Account</label>
+                            <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-to`, realId: editingItem.id, type: editingItem.type, field: 'to_account_id', label: `${editingItem.name} To`, value: editingItem.to_account_id, inputType: 'select', options: accountOptions }" />
+                        </div>
+                        <select v-model="form.to_account_id" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white"><option v-for="acc in accountOptions" :key="acc.id" :value="acc.id">{{ acc.name }}</option></select>
+                    </div>
                 </div>
-                
+
                 <div v-else>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        {{ form.flowType === 'expense' ? 'Pay From Account' : 'Deposit Into Account' }}
-                    </label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase">
+                            {{ form.flowType === 'expense' ? 'Pay From Account' : 'Deposit Into Account' }}
+                        </label>
+                        <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-account`, realId: editingItem.id, type: editingItem.type, field: editingItem.type === 'cost' ? 'account_id' : 'from_account_id', label: `${editingItem.name} Account`, value: editingItem.account_id || editingItem.from_account_id, inputType: 'select', options: accountOptions }" />
+                    </div>
                     <select v-model="form.account_id" v-if="form.flowType === 'expense'" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
                         <option v-for="acc in accountOptions" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
                     </select>
@@ -384,15 +406,21 @@ const flowLabel = computed(() => {
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">{{ form.frequencyMode === 'once' ? 'Date' : 'Start Date' }}</label>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">{{ form.frequencyMode === 'once' ? 'Date' : 'Start Date' }}</label>
+                            <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-date`, realId: editingItem.id, type: editingItem.type, field: editingItem.type === 'event' ? 'event_date' : 'start_date', label: `${editingItem.name} Date`, value: editingItem.event_date || editingItem.start_date, inputType: 'date' }" />
+                        </div>
                         <input type="date" v-model="form.start_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                     </div>
                     <div v-if="form.frequencyMode !== 'once'">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">End Date (Optional)</label>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">End Date (Optional)</label>
+                            <PinToggle v-if="editingItem.id !== 'new'" :item="{ id: `${editingItem.type}-${editingItem.id}-enddate`, realId: editingItem.id, type: editingItem.type, field: 'end_date', label: `${editingItem.name} End`, value: editingItem.end_date, inputType: 'date' }" />
+                        </div>
                         <input type="date" v-model="form.end_date" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
                     </div>
                 </div>
-                
+
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notes</label><textarea v-model="form.notes" rows="3" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"></textarea></div>
                 <div v-if="editingItem.id !== 'new'" class="pt-6 border-t border-slate-100">
                     <button type="button" @click="remove" class="w-full py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md font-medium text-sm transition-colors">Delete Transaction</button>
