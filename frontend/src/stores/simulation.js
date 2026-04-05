@@ -125,6 +125,8 @@ export const useSimulationStore = defineStore('simulation', () => {
             if (type === 'rule' && payload.trigger_value !== undefined) payload.trigger_value = Math.round(payload.trigger_value * 100);
 
             if (type === 'rule' && payload.transfer_value !== undefined && payload.transfer_value !== null) {
+                // mortgage_smart transfer_value is a percentage (e.g. 10 for 10%), not a monetary amount,
+                // so it must NOT be scaled to pence. All other rule types store pence.
                 if (payload.rule_type !== 'mortgage_smart') {
                     payload.transfer_value = Math.round(payload.transfer_value * 100);
                 }
@@ -278,6 +280,11 @@ export const useSimulationStore = defineStore('simulation', () => {
         runSimulation();
     }
 
+    function clearAllPins() {
+        pinnedItems.value = [];
+        overrides.value = {};
+    }
+
     const activeOverrideCount = computed(() => Object.keys(overrides.value).length)
     const currentNetWorth = computed(() => simulationData.value?.data_points[0]?.balance || 0)
     const projectedNetWorth = computed(() => simulationData.value?.data_points[simulationData.value.data_points.length - 1]?.balance || 0)
@@ -313,7 +320,7 @@ export const useSimulationStore = defineStore('simulation', () => {
 
     return {
         activeScenarioId, scenario, simulationMonths, pinnedItems, overrides, baselineData, simulationData, history,
-        loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, restoreSnapshot, commitPinnedItem, getApiOverrides, reorderRules,
+        loadActiveScenario, init, setDuration, saveEntity, deleteEntity, pinItem, unpinItem, updateOverride, resetOverrides, clearAllPins, restoreSnapshot, commitPinnedItem, getApiOverrides, reorderRules,
         activeOverrideCount, currentNetWorth, projectedNetWorth, baselineProjectedNetWorth, annualReturn, accountsByCategory, loadScenario, runBaseline
     }
 })

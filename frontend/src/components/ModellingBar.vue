@@ -43,9 +43,7 @@ const saveFork = async () => {
             overrides: overrides 
         });
         showForkModal.value = false;
-        store.resetOverrides();
-        store.pinnedItems = [];
-        store.overrides = {};
+        store.clearAllPins();
         await store.loadActiveScenario(newScen.id);
         router.push('/');
         alert("Scenario Saved & Activated!");
