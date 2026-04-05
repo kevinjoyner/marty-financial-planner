@@ -25,6 +25,7 @@ class AccountUpdate(BaseModel):
     is_primary_account: Optional[bool] = None
     currency: Optional[Currency] = None
     payment_from_account_id: Optional[int] = None
+    overpayment_allowance_percent: Optional[float] = None
 
     # RSU Fields
     rsu_target_account_id: Optional[int] = None

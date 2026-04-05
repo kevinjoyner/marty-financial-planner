@@ -27,6 +27,7 @@ class Account(Base):
     fixed_rate_period_years = Column(Integer, nullable=True)
     payment_from_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     is_primary_account = Column(Boolean, default=False)
+    overpayment_allowance_percent = Column(Float, nullable=True)
     
     # RSU
     grant_date = Column(Date, nullable=True)

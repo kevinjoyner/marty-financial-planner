@@ -21,6 +21,7 @@ class AccountBase(BaseModel):
     is_primary_account: bool = False
     currency: Currency = Currency.GBP
     payment_from_account_id: Optional[int] = None
+    overpayment_allowance_percent: Optional[float] = None
     
     # RSU Fields
     rsu_target_account_id: Optional[int] = None
