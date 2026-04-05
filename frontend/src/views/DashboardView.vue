@@ -4,7 +4,7 @@ import { useSimulationStore } from '../stores/simulation'
 import ProjectionChart from '../components/ProjectionChart.vue'
 import Scorecards from '../components/Scorecards.vue'
 import ChartLegend from '../components/ChartLegend.vue'
-import { AlertTriangle, ChevronDown, ChevronUp, Lock, Unlock, Download, FileText, EyeOff, Eye } from 'lucide-vue-next'
+import { AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronUp, Lock, Unlock, Download, FileText, EyeOff, Eye } from 'lucide-vue-next'
 import { exportBalancesToCSV, exportFlowsToCSV } from '../utils/export'
 
 const store = useSimulationStore()
@@ -152,52 +152,85 @@ watch(() => store.activeScenarioId, async (newId) => {
 
 watch([visibleAccountIds, aggregationMode, hiddenAlertSignatures], saveSettings, { deep: true });
 
-// --- Alert Logic (De-duped) ---
+// --- Alert Logic ---
 const rawAlerts = computed(() => store.simulationData?.warnings || [])
+const baselineAlerts = computed(() => store.baselineData?.warnings || [])
 
 const getTaxYear = (dateStr) => {
     const d = new Date(dateStr)
     const year = d.getFullYear()
-    const month = d.getMonth() + 1 
+    const month = d.getMonth() + 1
     return month >= 4 ? `${year}/${year+1}` : `${year-1}/${year}`
 }
 
-const filteredAlerts = computed(() => {
-    // 1. User Hidden Check
-    const visible = rawAlerts.value.filter(a => {
-        const sig = `${a.source_type}:${a.account_id}`;
-        return !hiddenAlertSignatures.value.has(sig);
-    });
+const warnSig = (a) => `${a.source_type}:${a.account_id}:${getTaxYear(a.date)}`
 
-    // 2. De-duplication by Tax Year + Message + Account
-    const seen = new Set();
-    const deduped = [];
-
-    for (const alert of visible) {
-        const taxYear = getTaxYear(alert.date);
-        const uniqueKey = `${taxYear}|${alert.account_id}|${alert.message}`;
-        
-        if (!seen.has(uniqueKey)) {
-            seen.add(uniqueKey);
-            deduped.push({ ...alert, tax_year: taxYear }); // Append tax year to object
+const getSourceLabel = (alert) => {
+    if (!store.scenario || !alert.source_id) return null
+    if (alert.source_type === 'income') {
+        for (const owner of store.scenario.owners || []) {
+            const inc = (owner.income_sources || []).find(i => i.id === alert.source_id)
+            if (inc) return `Income: "${inc.name}"`
         }
+    } else if (alert.source_type === 'rule') {
+        const rule = (store.scenario.automation_rules || []).find(r => r.id === alert.source_id)
+        if (rule) return `Rule: "${rule.name}"`
     }
-    return deduped;
+    return null
+}
+
+const dedupAndFilter = (warnings) => {
+    const seen = new Set()
+    const result = []
+    for (const a of warnings) {
+        const sig = warnSig(a)
+        const hidSig = `${a.source_type}:${a.account_id}`
+        if (seen.has(sig) || hiddenAlertSignatures.value.has(hidSig)) continue
+        seen.add(sig)
+        result.push({ ...a, tax_year: getTaxYear(a.date) })
+    }
+    return result
+}
+
+const alertDiff = computed(() => {
+    const model = dedupAndFilter(rawAlerts.value)
+    if (!isModelling.value) return { resolved: [], unchanged: model, introduced: [] }
+    const base = dedupAndFilter(baselineAlerts.value)
+    const baseSigSet = new Set(base.map(warnSig))
+    const modelSigSet = new Set(model.map(warnSig))
+    return {
+        resolved: base.filter(a => !modelSigSet.has(warnSig(a))),
+        unchanged: model.filter(a => baseSigSet.has(warnSig(a))),
+        introduced: model.filter(a => !baseSigSet.has(warnSig(a)))
+    }
 })
 
-const visibleAlerts = computed(() => alertsExpanded.value ? filteredAlerts.value : filteredAlerts.value.slice(0, 1))
-const hiddenCount = computed(() => Math.max(0, filteredAlerts.value.length - 1))
-const ignoredCount = computed(() => rawAlerts.value.length - filteredAlerts.value.length)
+const allSortedAlerts = computed(() => [
+    ...alertDiff.value.introduced.map(a => ({ ...a, _kind: 'introduced' })),
+    ...alertDiff.value.unchanged.map(a => ({ ...a, _kind: 'unchanged' })),
+    ...alertDiff.value.resolved.map(a => ({ ...a, _kind: 'resolved' }))
+])
+
+const hasAnyAlerts = computed(() => allSortedAlerts.value.length > 0)
+const visibleAlerts = computed(() => alertsExpanded.value ? allSortedAlerts.value : allSortedAlerts.value.slice(0, 1))
+const hiddenCount = computed(() => Math.max(0, allSortedAlerts.value.length - 1))
+const ignoredCount = computed(() => {
+    const allSigs = new Set([
+        ...rawAlerts.value.map(a => `${a.source_type}:${a.account_id}`),
+        ...baselineAlerts.value.map(a => `${a.source_type}:${a.account_id}`)
+    ])
+    return [...hiddenAlertSignatures.value].filter(s => allSigs.has(s)).length
+})
 
 const hideAlert = (alert) => {
-    const sig = `${alert.source_type}:${alert.account_id}`;
-    hiddenAlertSignatures.value.add(sig);
-    saveSettings(); 
+    const sig = `${alert.source_type}:${alert.account_id}`
+    hiddenAlertSignatures.value.add(sig)
+    saveSettings()
 }
 
 const resetHiddenAlerts = () => {
-    hiddenAlertSignatures.value.clear();
-    saveSettings();
+    hiddenAlertSignatures.value.clear()
+    saveSettings()
 }
 
 // --- Metrics Calculation ---
@@ -277,41 +310,61 @@ const downloadFlows = () => exportFlowsToCSV(store.simulationData, store.scenari
                 <h1 class="text-2xl font-bold text-slate-900">Financial Dashboard</h1>
                 <p class="text-slate-500 text-sm">Real-time projection of your financial future.</p>
                 
-                <div v-if="rawAlerts.length > 0" class="mt-3 flex flex-col items-start relative z-20">
-                     <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 w-full max-w-xl transition-all shadow-sm">
-                        <div :class="['space-y-1', alertsExpanded ? 'max-h-60 overflow-y-auto pr-2 custom-scrollbar' : '']">
-                            <div v-if="filteredAlerts.length === 0" class="text-xs text-amber-700 italic">
+                <div v-if="hasAnyAlerts" class="mt-3 flex flex-col items-start relative z-20">
+                    <div :class="['rounded-lg px-4 py-2 w-full max-w-xl transition-all shadow-sm', isModelling ? 'bg-purple-50 border border-purple-300' : 'bg-amber-50 border border-amber-200']">
+
+                        <!-- A: Modelled scenario header -->
+                        <div v-if="isModelling" class="flex items-center gap-2 mb-2 pb-2 border-b border-purple-200">
+                            <span class="text-xs font-bold text-purple-600 uppercase tracking-wide">Modelled Scenario</span>
+                        </div>
+
+                        <div :class="['space-y-2', alertsExpanded ? 'max-h-64 overflow-y-auto pr-2 custom-scrollbar' : '']">
+                            <div v-if="allSortedAlerts.length === 0" :class="['text-xs italic', isModelling ? 'text-purple-700' : 'text-amber-700']">
                                 All alerts hidden.
                             </div>
                             <div v-for="(alert, idx) in visibleAlerts" :key="idx" class="flex items-start justify-between group gap-4">
-                                <div class="flex items-start gap-2">
-                                    <AlertTriangle class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                                    <span class="text-sm text-amber-900 font-medium leading-tight">
-                                        <span class="font-mono text-xs opacity-75 mr-1 bg-amber-100 px-1 rounded">{{ alert.tax_year }}:</span>
-                                        {{ alert.message }}
-                                    </span>
+                                <div class="flex items-start gap-2 min-w-0">
+                                    <!-- B: Icon by kind -->
+                                    <CheckCircle2 v-if="alert._kind === 'resolved'" class="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                    <XCircle v-else-if="alert._kind === 'introduced'" class="w-4 h-4 text-rose-500 mt-0.5 flex-shrink-0" />
+                                    <AlertTriangle v-else class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+
+                                    <div class="min-w-0">
+                                        <!-- B: Message with kind-appropriate colour -->
+                                        <span :class="['text-sm font-medium leading-tight', alert._kind === 'resolved' ? 'text-emerald-800 opacity-70 line-through' : alert._kind === 'introduced' ? 'text-rose-900' : 'text-amber-900']">
+                                            <span :class="['font-mono text-xs opacity-75 mr-1 px-1 rounded', alert._kind === 'resolved' ? 'bg-emerald-100' : alert._kind === 'introduced' ? 'bg-rose-100' : 'bg-amber-100']">{{ alert.tax_year }}:</span>
+                                            {{ alert.message }}
+                                        </span>
+                                        <!-- C: Source label -->
+                                        <div v-if="getSourceLabel(alert)" :class="['text-[10px] mt-0.5', alert._kind === 'resolved' ? 'text-emerald-600' : alert._kind === 'introduced' ? 'text-rose-500' : 'text-amber-600']">
+                                            {{ getSourceLabel(alert) }}
+                                        </div>
+                                        <!-- B: Kind badge for resolved / introduced -->
+                                        <div v-if="isModelling && alert._kind !== 'unchanged'" :class="['text-[10px] font-bold uppercase tracking-wide mt-0.5', alert._kind === 'resolved' ? 'text-emerald-500' : 'text-rose-500']">
+                                            {{ alert._kind === 'resolved' ? 'Resolved by model' : 'Introduced by model' }}
+                                        </div>
+                                    </div>
                                 </div>
-                                <button @click="hideAlert(alert)" class="text-amber-400 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity p-0.5" title="Hide this type of alert">
+                                <button @click="hideAlert(alert)" :class="['opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0', alert._kind === 'resolved' ? 'text-emerald-400 hover:text-emerald-700' : alert._kind === 'introduced' ? 'text-rose-400 hover:text-rose-700' : 'text-amber-400 hover:text-amber-700']" title="Hide this type of alert">
                                     <EyeOff class="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         </div>
-                        
-                        <div class="flex justify-between items-center mt-2 pt-2 border-t border-amber-100">
-                            <button v-if="hiddenCount > 0 || alertsExpanded" 
+
+                        <div :class="['flex justify-between items-center mt-2 pt-2 border-t', isModelling ? 'border-purple-100' : 'border-amber-100']">
+                            <button v-if="hiddenCount > 0 || alertsExpanded"
                                     @click="alertsExpanded = !alertsExpanded"
-                                    class="text-xs text-amber-700 hover:text-amber-900 font-medium flex items-center gap-1">
+                                    :class="['text-xs font-medium flex items-center gap-1', isModelling ? 'text-purple-700 hover:text-purple-900' : 'text-amber-700 hover:text-amber-900']">
                                 <span v-if="!alertsExpanded">Show {{ hiddenCount }} more</span>
                                 <span v-else>Show less</span>
                                 <ChevronDown v-if="!alertsExpanded" class="w-3 h-3" />
                                 <ChevronUp v-else class="w-3 h-3" />
                             </button>
-                            
-                            <button v-if="ignoredCount > 0" @click="resetHiddenAlerts" class="text-xs text-amber-600/60 hover:text-amber-800 flex items-center gap-1 ml-auto">
+                            <button v-if="ignoredCount > 0" @click="resetHiddenAlerts" :class="['text-xs flex items-center gap-1 ml-auto', isModelling ? 'text-purple-600/60 hover:text-purple-800' : 'text-amber-600/60 hover:text-amber-800']">
                                 <Eye class="w-3 h-3" /> Reset {{ ignoredCount }} hidden
                             </button>
                         </div>
-                     </div>
+                    </div>
                 </div>
             </div>
             
