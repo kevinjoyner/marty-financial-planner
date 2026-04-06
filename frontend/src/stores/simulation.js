@@ -308,10 +308,10 @@ export const useSimulationStore = defineStore('simulation', () => {
                 a.account_type !== 'Loan' &&
                 a.account_type !== 'Property' &&
                 a.account_type !== 'Main Residence' &&
-                (!a.tax_wrapper || a.tax_wrapper === 'None' || a.tax_wrapper === 'ISA' || a.tax_wrapper === 'GIA')
+                (!a.tax_wrapper || a.tax_wrapper === 'None' || a.tax_wrapper === 'ISA' || a.tax_wrapper === 'GIA' || a.tax_wrapper === 'Junior ISA')
             ),
             illiquid: accs.filter(a =>
-                ((a.tax_wrapper === 'Pension' || a.tax_wrapper === 'LISA' || a.account_type === 'Property' || a.account_type === 'Main Residence') && a.account_type !== 'RSU Grant')
+                ((a.tax_wrapper === 'Pension' || a.tax_wrapper === 'Lifetime ISA' || a.account_type === 'Property' || a.account_type === 'Main Residence') && a.account_type !== 'RSU Grant')
             ),
             liabilities: accs.filter(a => a.account_type === 'Mortgage' || a.account_type === 'Loan'),
             unvested: accs.filter(a => a.account_type === 'RSU Grant')
