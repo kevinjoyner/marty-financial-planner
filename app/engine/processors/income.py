@@ -88,6 +88,21 @@ def process_income(scenario: models.Scenario, context: ProjectionContext):
                 adjusted_gross = max(0, gross_input - effective_sacrifice)
 
                 if effective_sacrifice > 0 and sac_target and sac_target in context.account_balances:
+                    # Check pension AA headroom BEFORE tracking sacrifice (employer already tracked above).
+                    # Catches combined cross-source breaches across multiple income sources.
+                    pension_headroom = get_contribution_headroom(context, sac_target, scenario.tax_limits)
+                    if pension_headroom < effective_sacrifice:
+                        context.warnings.append(schemas.ProjectionWarning(
+                            date=context.month_start,
+                            account_id=inc.account_id,
+                            message=(
+                                f"Pension AA: '{inc.name}' sacrifice £{effective_sacrifice/100:,.0f} exceeds remaining "
+                                f"Annual Allowance £{pension_headroom/100:,.0f} (combined contributions from all sources "
+                                f"have exceeded the £60,000 annual limit)."
+                            ),
+                            source_type="income",
+                            source_id=inc.id
+                        ))
                     context.account_balances[sac_target] += effective_sacrifice
                     context.account_book_costs[sac_target] += effective_sacrifice
                     track_contribution(context, sac_target, effective_sacrifice)
