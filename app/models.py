@@ -79,6 +79,10 @@ class IncomeSource(Base):
     salary_sacrifice_value = Column(Integer, default=0)
     taxable_benefit_value = Column(Integer, default=0)
     employer_pension_contribution = Column(Integer, default=0)
+    salary_sacrifice_percent = Column(Float, nullable=True)
+    employer_match_percent = Column(Float, nullable=True)
+    employer_ni_supplement = Column(Boolean, default=False)
+    employer_ni_rate = Column(Float, nullable=True)
     notes = Column(String, nullable=True)
     
     owner = relationship("Owner", back_populates="income_sources")

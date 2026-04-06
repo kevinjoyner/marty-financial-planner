@@ -87,5 +87,27 @@ def validate_pension_access(context: ProjectionContext, account_id: int) -> Opti
     
     if age_years < PENSION_ACCESS_AGE:
         return f"Pension Locked: {owner.name} is {age_years} (Min: {PENSION_ACCESS_AGE})"
-    
+
     return None
+
+
+def calculate_tapered_annual_allowance(threshold_income_gbp: float, adjusted_income_gbp: float) -> float:
+    """
+    Returns the effective Annual Allowance in £ after any high-earner taper.
+
+    threshold_income_gbp: post-sacrifice taxable income for the year (£)
+    adjusted_income_gbp:  threshold income + all employer pension contributions (£)
+
+    From 2023/24: Standard AA £60,000. Taper applies when Threshold Income > £200,000.
+    AA reduces by £1 per £2 of Adjusted Income above £260,000. Minimum AA: £10,000.
+    """
+    STANDARD_AA = 60_000.0
+    TAPER_TRIGGER = 200_000.0
+    TAPER_THRESHOLD = 260_000.0
+    MIN_AA = 10_000.0
+
+    if threshold_income_gbp <= TAPER_TRIGGER:
+        return STANDARD_AA
+
+    reduction = max(0.0, (adjusted_income_gbp - TAPER_THRESHOLD) / 2.0)
+    return max(MIN_AA, STANDARD_AA - reduction)

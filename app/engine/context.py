@@ -30,6 +30,9 @@ class ProjectionContext:
     all_accounts: List[models.Account] = field(default_factory=list)
     prev_balances: Dict[int, int] = field(default_factory=dict)
 
+    # Insight deduplication: prevents repeating the same annual insights across months
+    emitted_annual_insights: set = field(default_factory=set)
+
     def advance_month(self):
         """Move the context date forward by one month."""
         self.month_start = self.month_start + relativedelta(months=1)

@@ -95,8 +95,12 @@ class ImportIncomeSource(BaseModel):
     salary_sacrifice_value: int = 0
     taxable_benefit_value: int = 0
     employer_pension_contribution: int = 0
+    salary_sacrifice_percent: Optional[float] = None
+    employer_match_percent: Optional[float] = None
+    employer_ni_supplement: bool = False
+    employer_ni_rate: Optional[float] = None
     notes: Optional[str] = None
-    
+
     # Relations (ID only)
     account_id: Optional[int] = None
     salary_sacrifice_account_id: Optional[int] = None

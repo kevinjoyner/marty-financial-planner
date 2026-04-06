@@ -20,6 +20,10 @@ class IncomeSourceBase(BaseModel):
     salary_sacrifice_account_id: Optional[int] = None
     taxable_benefit_value: int = 0
     employer_pension_contribution: int = 0
+    salary_sacrifice_percent: Optional[float] = None
+    employer_match_percent: Optional[float] = None
+    employer_ni_supplement: bool = False
+    employer_ni_rate: Optional[float] = None
     notes: Optional[str] = None
 
 class IncomeSourceCreate(IncomeSourceBase):
@@ -38,6 +42,10 @@ class IncomeSourceUpdate(BaseModel):
     salary_sacrifice_account_id: Optional[int] = None
     taxable_benefit_value: Optional[int] = None
     employer_pension_contribution: Optional[int] = None
+    salary_sacrifice_percent: Optional[float] = None
+    employer_match_percent: Optional[float] = None
+    employer_ni_supplement: Optional[bool] = None
+    employer_ni_rate: Optional[float] = None
     notes: Optional[str] = None
 
 class IncomeSource(IncomeSourceBase):
