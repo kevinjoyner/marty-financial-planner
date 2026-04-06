@@ -51,17 +51,22 @@ const ganttLabelPlugin = {
             // Add extra buffer to measured width to account for rendering variations
             const boxWidth = Math.ceil(textWidth + (PADDING_X * 2) + 10);
             
+            // Determine actual rendered bounds now, so lane collision uses real pixel positions.
+            // Right-aligned labels render leftward from their anchor; left-aligned go rightward.
+            const willFlip = (xPos + boxWidth) > chartArea.right;
+            const effectiveLeft  = willFlip ? xPos - boxWidth : xPos;
+            const effectiveRight = willFlip ? xPos            : xPos + boxWidth;
+
             let laneIndex = 0;
             // Find the first lane where this box fits without overlapping the previous item
             while (true) {
                 const laneEnd = lanes[laneIndex] || -9999;
-                
-                if (xPos > (laneEnd + MARGIN)) {
-                    lanes[laneIndex] = xPos + boxWidth; 
+                if (effectiveLeft > (laneEnd + MARGIN)) {
+                    lanes[laneIndex] = effectiveRight;
                     break;
                 }
                 laneIndex++;
-            } 
+            }
 
             const yPos = BASE_Y + (laneIndex * ROW_HEIGHT);
             
