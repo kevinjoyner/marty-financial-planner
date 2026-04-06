@@ -33,8 +33,12 @@ class Account(Base):
     grant_date = Column(Date, nullable=True)
     vesting_schedule = Column(JSON, nullable=True)
     vesting_cadence = Column(String, default="monthly", nullable=True)
-    unit_price = Column(Integer, nullable=True) 
+    unit_price = Column(Integer, nullable=True)
     rsu_target_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
+    # ISA grouping and flexibility
+    account_group = Column(String, nullable=True)
+    is_flexible_isa = Column(Boolean, default=False)
 
     owners = relationship("Owner", secondary="account_owners", back_populates="accounts")
 

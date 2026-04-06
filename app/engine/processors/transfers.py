@@ -1,7 +1,7 @@
 from app import models, enums, schemas
 from app.engine.context import ProjectionContext
 from app.services.tax import TaxService
-from app.engine.helpers import track_contribution, get_contribution_headroom, calculate_disposal_impact
+from app.engine.helpers import track_contribution, track_flexible_withdrawal, get_contribution_headroom, calculate_disposal_impact
 
 def process_transfers(scenario: models.Scenario, context: ProjectionContext):
     seen_ids = set(); unique_transfers = []
@@ -59,11 +59,12 @@ def process_transfers(scenario: models.Scenario, context: ProjectionContext):
                 cgt_tax = total_cgt
 
             context.account_balances[transfer.from_account_id] -= value
-            context.account_book_costs[transfer.from_account_id] -= cost_portion 
+            context.account_book_costs[transfer.from_account_id] -= cost_portion
             context.flows[transfer.from_account_id]["transfers_out"] += value
-            context.flows[transfer.from_account_id]["cgt"] += cgt_tax 
-            net_received = value - cgt_tax 
+            context.flows[transfer.from_account_id]["cgt"] += cgt_tax
+            track_flexible_withdrawal(context, transfer.from_account_id, value)
+            net_received = value - cgt_tax
             context.account_balances[transfer.to_account_id] += net_received
-            context.account_book_costs[transfer.to_account_id] += net_received 
+            context.account_book_costs[transfer.to_account_id] += net_received
             context.flows[transfer.to_account_id]["transfers_in"] += net_received
-            track_contribution(context, transfer.to_account_id, net_received)
+            track_contribution(context, transfer.to_account_id, net_received, source_account_id=transfer.from_account_id)

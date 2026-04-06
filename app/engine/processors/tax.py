@@ -15,6 +15,7 @@ def process_tax_year_end(scenario: models.Scenario, context: ProjectionContext):
     
     # 2. Reset Contributions (ISA/Pension Limits)
     context.ytd_contributions = {}
+    context.ytd_flexible_withdrawals = {}
     
     # 3. Reset Savings Interest & Capital Gains
     context.ytd_interest = {}

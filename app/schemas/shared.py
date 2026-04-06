@@ -30,6 +30,10 @@ class AccountBase(BaseModel):
     unit_price: Optional[int] = None
     vesting_cadence: Optional[str] = 'monthly'
 
+    # ISA grouping and flexibility
+    account_group: Optional[str] = None
+    is_flexible_isa: bool = False
+
     @model_validator(mode='before')
     @classmethod
     def normalize_account_type(cls, data: Any) -> Any:

@@ -13,6 +13,7 @@ class ProjectionContext:
     
     # Year-to-Date State
     ytd_contributions: Dict = field(default_factory=dict)
+    ytd_flexible_withdrawals: Dict = field(default_factory=dict)
     ytd_earnings: Dict = field(default_factory=dict)
     ytd_interest: Dict = field(default_factory=dict)
     ytd_gains: Dict = field(default_factory=dict)

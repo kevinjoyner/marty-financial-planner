@@ -1,6 +1,6 @@
 from app import models, enums
 from app.engine.context import ProjectionContext
-from typing import List, Any
+from typing import List, Any, Optional
 from dateutil.relativedelta import relativedelta
 
 def _get_enum_value(obj: Any) -> str:
@@ -62,47 +62,88 @@ def calculate_gbp_balances(current_balances, accounts, rate, month_start=None):
         total += val_gbp
     return gbp_balances, total
 
-def track_contribution(context: ProjectionContext, account_id: int, amount: int):
+def _same_account_group(acc_a, acc_b) -> bool:
+    """Return True if two accounts belong to the same ISA group and share an owner."""
+    group_a = getattr(acc_a, 'account_group', None)
+    group_b = getattr(acc_b, 'account_group', None)
+    if not group_a or not group_b or group_a != group_b:
+        return False
+    owners_a = {o.id for o in (acc_a.owners or [])}
+    owners_b = {o.id for o in (acc_b.owners or [])}
+    return bool(owners_a & owners_b)
+
+
+def track_contribution(context: ProjectionContext, account_id: int, amount: int, source_account_id: Optional[int] = None):
     if amount <= 0: return
     acc = next((a for a in context.all_accounts if a.id == account_id), None)
     if not acc: return
-    
+
     # Robust Enum Access
     wrapper_val = _get_enum_value(acc.tax_wrapper)
-    
+
     if not wrapper_val or wrapper_val == "None": return
+
+    # Skip allowance tracking for internal moves within the same account group
+    # (e.g. cash sleeve ↔ investments sleeve of the same ISA)
+    if source_account_id is not None:
+        source_acc = next((a for a in context.all_accounts if a.id == source_account_id), None)
+        if source_acc and _same_account_group(source_acc, acc):
+            return
 
     if acc.owners:
         owner_id = acc.owners[0].id
         type_val = _get_enum_value(acc.account_type)
-        
+
         if owner_id not in context.ytd_contributions: context.ytd_contributions[owner_id] = {}
-        
+
         key = f"{wrapper_val}:{type_val}"
         context.ytd_contributions[owner_id][key] = context.ytd_contributions[owner_id].get(key, 0) + amount
+
+
+def track_flexible_withdrawal(context: ProjectionContext, account_id: int, amount: int):
+    """Record a withdrawal from a flexible ISA, restoring that amount of subscription headroom."""
+    if amount <= 0: return
+    acc = next((a for a in context.all_accounts if a.id == account_id), None)
+    if not acc: return
+
+    wrapper_val = _get_enum_value(acc.tax_wrapper)
+    if not wrapper_val or wrapper_val == "None": return
+    if not getattr(acc, 'is_flexible_isa', False): return
+    if not acc.owners: return
+
+    owner_id = acc.owners[0].id
+    type_val = _get_enum_value(acc.account_type)
+    key = f"{wrapper_val}:{type_val}"
+
+    if owner_id not in context.ytd_flexible_withdrawals:
+        context.ytd_flexible_withdrawals[owner_id] = {}
+    context.ytd_flexible_withdrawals[owner_id][key] = (
+        context.ytd_flexible_withdrawals[owner_id].get(key, 0) + amount
+    )
+
 
 def get_contribution_headroom(context: ProjectionContext, account_id: int, tax_limits: List[models.TaxLimit]):
     acc = next((a for a in context.all_accounts if a.id == account_id), None)
     if not acc: return 999999999999
-    
+
     wrapper_val = _get_enum_value(acc.tax_wrapper)
-    
+
     if not wrapper_val or wrapper_val == "None": return 999999999999
     if not acc.owners: return 0
-    
+
     owner_id = acc.owners[0].id
     type_val = _get_enum_value(acc.account_type)
-    
+
     applicable_limits = []
     for limit in tax_limits:
         if limit.start_date <= context.month_start and (limit.end_date is None or limit.end_date >= context.month_start):
             if wrapper_val in limit.wrappers:
                 if limit.account_types and len(limit.account_types) > 0:
-                    if type_val not in limit.account_types: continue 
+                    if type_val not in limit.account_types: continue
                 applicable_limits.append(limit)
-                
+
     if not applicable_limits: return 999999999999
-    
+
     min_headroom = 999999999999
     for limit in applicable_limits:
         limit_usage = 0
@@ -110,15 +151,25 @@ def get_contribution_headroom(context: ProjectionContext, account_id: int, tax_l
             user_contribs = context.ytd_contributions[owner_id]
             for key, amount in user_contribs.items():
                 c_wrapper, c_type = key.split(":")
-                
                 wrapper_match = c_wrapper in limit.wrappers
                 type_match = True
                 if limit.account_types and len(limit.account_types) > 0:
                     if c_type not in limit.account_types: type_match = False
-                
                 if wrapper_match and type_match: limit_usage += amount
-        
-        headroom = max(0, limit.amount - limit_usage)
+
+        # Flexible ISA withdrawals restore headroom (money taken out can be re-subscribed)
+        flexible_offset = 0
+        if owner_id in context.ytd_flexible_withdrawals:
+            for key, amount in context.ytd_flexible_withdrawals[owner_id].items():
+                f_wrapper, f_type = key.split(":")
+                wrapper_match = f_wrapper in limit.wrappers
+                type_match = True
+                if limit.account_types and len(limit.account_types) > 0:
+                    if f_type not in limit.account_types: type_match = False
+                if wrapper_match and type_match: flexible_offset += amount
+
+        # Cap headroom at limit.amount — flexible credits can't exceed the annual limit
+        headroom = max(0, min(limit.amount, limit.amount - limit_usage + flexible_offset))
         if headroom < min_headroom: min_headroom = headroom
-        
+
     return min_headroom

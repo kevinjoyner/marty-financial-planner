@@ -34,6 +34,10 @@ class AccountUpdate(BaseModel):
     unit_price: Optional[int] = None
     vesting_cadence: Optional[str] = None
 
+    # ISA grouping and flexibility
+    account_group: Optional[str] = None
+    is_flexible_isa: Optional[bool] = None
+
     owner_ids: Optional[List[int]] = None
 
 class OwnerInAccount(OwnerBase):

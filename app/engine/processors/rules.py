@@ -1,6 +1,6 @@
 from app import models, enums, utils, schemas
 from app.engine.context import ProjectionContext
-from app.engine.helpers import _get_enum_value, get_contribution_headroom, track_contribution, calculate_disposal_impact
+from app.engine.helpers import _get_enum_value, get_contribution_headroom, track_contribution, track_flexible_withdrawal, calculate_disposal_impact
 from app.services.tax import TaxService
 
 def process_rules(scenario: models.Scenario, context: ProjectionContext):
@@ -144,15 +144,16 @@ def process_rules(scenario: models.Scenario, context: ProjectionContext):
             context.account_balances[source_id] -= transfer_amount
             context.flows[source_id]["transfers_out"] += transfer_amount
             context.flows[source_id]["cgt"] += cgt_tax
-            
+            track_flexible_withdrawal(context, source_id, transfer_amount)
+
             target_name = "External"
             if target_id and target_id in context.account_balances:
                 net_received = transfer_amount - cgt_tax
                 context.account_balances[target_id] += net_received
                 context.account_book_costs[target_id] += net_received
-                
+
                 context.flows[target_id]["transfers_in"] += net_received
-                track_contribution(context, target_id, net_received)
+                track_contribution(context, target_id, net_received, source_account_id=source_id)
                 
                 acc = next((a for a in scenario.accounts if a.id == target_id), None)
                 if acc: target_name = acc.name

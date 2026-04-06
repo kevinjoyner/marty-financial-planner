@@ -356,6 +356,19 @@ const goToPeople = () => router.push('/tax')
                     </div>
                 </div>
 
+                <div v-if="['ISA', 'Lifetime ISA', 'Junior ISA'].includes(form.tax_wrapper)" class="p-4 bg-green-50 rounded-lg border border-green-100 space-y-4 mt-4">
+                    <h4 class="text-xs font-bold text-green-700 uppercase tracking-wide">ISA Settings</h4>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">ISA Group</label>
+                        <input type="text" v-model="form.account_group" placeholder="e.g. my-isa" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm" />
+                        <p class="text-xs text-green-700 mt-1">Accounts sharing a group name (and owner) are treated as sleeves of the same ISA — transfers between them don't consume allowance.</p>
+                    </div>
+                    <div v-if="form.tax_wrapper === 'ISA'" class="flex items-center gap-3">
+                        <input type="checkbox" id="is_flexible_isa" v-model="form.is_flexible_isa" class="w-4 h-4 rounded border-slate-300 text-primary" />
+                        <label for="is_flexible_isa" class="text-sm font-medium text-slate-700">Flexible ISA <span class="font-normal text-slate-500">(withdrawals restore subscription headroom)</span></label>
+                    </div>
+                </div>
+
                 <div v-if="form.account_type === 'Mortgage'" class="space-y-6 pt-2">
                     <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Loan Details</h4>
                         <div class="grid grid-cols-2 gap-4">
