@@ -76,7 +76,7 @@ def process_decumulation(scenario: models.Scenario, context: ProjectionContext):
                  isas.append(acc)
              elif wrapper == "Pension":
                  pensions.append(acc)
-             elif wrapper == "General Investment Account" or wrapper == "None" or wrapper is None:
+             elif wrapper == "GIA" or wrapper == "None" or wrapper is None:
                  gias.append(acc)
 
     # 3. Withdraw Logic (Revised Priority: GIA -> ISA -> Pension)

@@ -100,7 +100,8 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
     projection_anchor = start_date.replace(day=1)
     current_fy = utils.get_uk_fiscal_year(start_date)
     
-    prev_metrics = {'liquid': 0, 'liability': 999999999999} 
+    prev_metrics = {'liquid': 0, 'liability': 999999999999}
+    liquid_milestone_fired = False
 
     for i in range(months):
         context.prev_balances = context.account_balances.copy()
@@ -185,7 +186,8 @@ def run_projection(db: Session, scenario: models.Scenario, months: int, override
                 liability_val += abs(val_gbp)
 
         if i > 0:
-            if prev_metrics['liquid'] < prev_metrics['liability'] and liquid_val >= liability_val:
+            if not liquid_milestone_fired and prev_metrics['liquid'] < prev_metrics['liability'] and liquid_val >= liability_val:
+                 liquid_milestone_fired = True
                  context.annotations.append(schemas.ProjectionAnnotation(
                      date=projection_month_start,
                      label="Liquid Assets > Liabilities",

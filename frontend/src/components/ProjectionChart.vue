@@ -4,7 +4,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { Line } from 'vue-chartjs'
 import annotationPlugin from 'chartjs-plugin-annotation'
 import { useSimulationStore } from '../stores/simulation'
-import { formatCurrency } from '../utils/format'
 import { getAccountColor, getCategoryColor } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, annotationPlugin)
